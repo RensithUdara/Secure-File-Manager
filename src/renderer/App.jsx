@@ -542,7 +542,7 @@ export default function App() {
         setStatus('File unlocked.');
 
         await refreshStorageView();
-        
+
         // Refetch the updated entry to update UI
         if (api && currentUser && (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath)) {
           const list = await api.listEntries({ userId: currentUser.id, path: currentPath });
