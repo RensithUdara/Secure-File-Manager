@@ -579,6 +579,21 @@ export default function App() {
     );
   }
 
+  if (!settingsReady) {
+    return (
+      <div className="app-shell error-shell">
+        <div className="error-card">
+          <h1>Loading vault</h1>
+          <p>Preparing security settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (startupLocked) {
+    return <StartupGate status={startupStatus} onUnlock={handleUnlockStartup} />;
+  }
+
   if (!currentUser) {
     return (
       <ProfileGate
@@ -587,16 +602,24 @@ export default function App() {
         onCreate={handleCreateProfile}
         onOpen={handleOpenProfile}
         onRefresh={refreshProfiles}
+        onInviteCreate={handleInviteCreate}
+        onInviteRedeem={handleInviteRedeem}
       />
     );
   }
 
   return (
     <div className="app-shell">
-      <Sidebar currentUser={currentUser} onSettings={() => setSettingsOpen(true)} onLock={lockVault} />
+      <Sidebar
+        currentUser={currentUser}
+        onSettings={() => setSettingsOpen(true)}
+        onLock={lockVault}
+        activeView={viewMode}
+        onSelectView={handleSelectView}
+      />
       <main className="app-main">
         <Toolbar
-          pathLabel={currentPathLabel}
+          pathLabel={viewLabel}
           onBack={handleBack}
           onNewFolder={() => setNewFolderOpen(true)}
           onOpenCmd={handleOpenCmd}
@@ -605,6 +628,9 @@ export default function App() {
           onImport={handleImportClick}
           searchTerm={searchTerm}
           onSearch={handleSearchChange}
+          canNavigate={viewMode === 'storage' && Boolean(currentPath)}
+          canMutate={viewMode === 'storage'}
+          searchDisabled={viewMode !== 'storage'}
         />
         {status ? <div className="status-banner">{status}</div> : null}
         <section
@@ -616,7 +642,7 @@ export default function App() {
           {isDragging ? <div className="drop-overlay">Drop files to encrypt & store</div> : null}
           <div className="content-grid">
             <div className="content-main">
-              {searchTerm.trim() ? (
+              {viewMode === 'storage' && searchTerm.trim() ? (
                 <p className="search-note">Showing results for "{searchTerm}"</p>
               ) : null}
               <FileGrid
@@ -628,7 +654,15 @@ export default function App() {
               />
             </div>
             <div className="content-side">
-              <PreviewPanel entry={selectedEntry} preview={preview} />
+              <PreviewPanel
+                entry={selectedEntry}
+                preview={preview}
+                meta={entryMeta}
+                versions={versions}
+                onSaveMeta={handleSaveMeta}
+                onRestoreVersion={handleRestoreVersion}
+                onCreateVersion={() => selectedEntry && handleCreateVersion(selectedEntry)}
+              />
               <ActivityPanel items={activity} />
             </div>
           </div>
@@ -650,12 +684,17 @@ export default function App() {
       <ContextMenu
         menu={menu}
         onClose={closeMenu}
+        viewMode={viewMode}
         onAction={(action) => {
           if (!menu.entry) return;
           if (action === 'open') handleOpenEntry(menu.entry);
           if (action === 'rename') handleRename(menu.entry);
           if (action === 'delete') handleDelete(menu.entry);
           if (action === 'toggleLock') handleToggleLock(menu.entry);
+          if (action === 'toggleFavorite') handleToggleFavorite(menu.entry);
+          if (action === 'createVersion') handleCreateVersion(menu.entry);
+          if (action === 'restore') handleRestoreTrash(menu.entry);
+          if (action === 'purge') handlePurgeTrash(menu.entry);
           closeMenu();
         }}
       />
@@ -664,8 +703,15 @@ export default function App() {
         open={settingsOpen}
         profile={currentUser}
         status={status}
+        theme={theme}
+        startupEnabled={startupEnabled}
         onClose={() => setSettingsOpen(false)}
         onSave={handleUpdateProfile}
+        onSetTheme={handleSetTheme}
+        onSetStartupPassword={handleSetStartupPassword}
+        onClearStartupPassword={handleClearStartupPassword}
+        onExportActivity={handleExportActivity}
+        onExportVault={handleExportVault}
       />
 
       <NewFolderModal
