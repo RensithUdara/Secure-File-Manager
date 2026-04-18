@@ -20,6 +20,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "archiver": "^6.0.2",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.5.0",
     "electron": "^31.1.0",
