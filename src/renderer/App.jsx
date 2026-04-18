@@ -121,6 +121,12 @@ export default function App() {
   }, [status]);
 
   useEffect(() => {
+    if (!startupStatus) return undefined;
+    const timer = setTimeout(() => setStartupStatus(''), 5000);
+    return () => clearTimeout(timer);
+  }, [startupStatus]);
+
+  useEffect(() => {
     if (!api || !currentUser) return;
     refreshActivity();
   }, [currentUser, refreshActivity]);
@@ -400,6 +406,12 @@ export default function App() {
     const confirmed = window.confirm(`Delete ${entry.name}? This cannot be undone.`);
     if (!confirmed) return;
     await api.deleteEntry({ userId: currentUser.id, path: entryPath });
+    if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entry.relPath) {
+      setSelectedEntry(null);
+      setPreview(null);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
+    }
     await refreshEntries(currentPath, currentUser, viewMode === 'storage' ? 'storage' : viewMode);
     await refreshActivity();
   };
@@ -464,7 +476,15 @@ export default function App() {
   const handleToggleFavorite = async (entry) => {
     if (!api || !currentUser) return;
     const entryPath = entry.storagePath || entry.relPath;
-    await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
+    const result = await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
+    if (viewMode === 'favorites' && result.favorite === false) {
+      if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entry.relPath) {
+        setSelectedEntry(null);
+        setPreview(null);
+        setEntryMeta({ tags: [], note: '' });
+        setVersions([]);
+      }
+    }
     await refreshEntries(currentPath, currentUser, viewMode);
   };
 
