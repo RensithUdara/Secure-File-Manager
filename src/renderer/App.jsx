@@ -542,12 +542,14 @@ export default function App() {
   const handleDrop = async (event) => {
     event.preventDefault();
     setIsDragging(false);
+    if (viewMode !== 'storage') return;
     if (!event.dataTransfer?.files?.length) return;
     await handleImportFiles(event.dataTransfer.files);
   };
 
   const handleDragOver = (event) => {
     event.preventDefault();
+    if (viewMode !== 'storage') return;
     setIsDragging(true);
   };
 
@@ -564,7 +566,7 @@ export default function App() {
     setSearchTerm(value);
   };
 
-  const visibleEntries = searchTerm.trim() ? searchResults : entries;
+  const visibleEntries = viewMode === 'storage' && searchTerm.trim() ? searchResults : entries;
 
   if (!api) {
     return (
