@@ -27,7 +27,10 @@ export default function FileGrid({ entries, onOpen, onContextMenu, onSelect, sel
                     </div>
                     <div className="file-meta">
                         <p className="file-name">{entry.name}</p>
-                        <p className="file-detail">{entry.detail || (entry.isLocked ? 'Locked' : 'Unlocked')}</p>
+                        <p className="file-detail">
+                            {entry.detail ? `${entry.detail} • ` : ''}
+                            {entry.isLocked ? '🔒 Locked' : 'Unlocked'}
+                        </p>
                     </div>
                     {entry.isLocked ? <span className="lock-badge">Locked</span> : null}
                     {entry.isFavorite ? <span className="favorite-badge">★</span> : null}
