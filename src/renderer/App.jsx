@@ -541,16 +541,21 @@ export default function App() {
         console.log('[PIN Lock] File unlocked successfully');
         setStatus('File unlocked.');
 
-        await refreshStorageView();
-
-        // Refetch the updated entry to update UI
-        if (api && currentUser && (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath)) {
-          const list = await api.listEntries({ userId: currentUser.id, path: currentPath });
-          const updatedEntry = list.find(e => (e.storagePath || e.relPath) === entryPath);
-          if (updatedEntry) {
-            setSelectedEntry(updatedEntry);
-            console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
+        // Update entries array directly to reflect the lock status
+        setEntries(prev => prev.map(e => {
+          const ePath = e.storagePath || e.relPath;
+          if (ePath === entryPath) {
+            console.log('[PIN Lock] Updated entry in entries array - isLocked: false');
+            return { ...e, isLocked: false };
           }
+          return e;
+        }));
+
+        // Update selectedEntry directly to reflect the lock status
+        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+          const updatedEntry = { ...selectedEntry, isLocked: false };
+          setSelectedEntry(updatedEntry);
+          console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
         }
 
         await refreshActivity();
@@ -591,16 +596,21 @@ export default function App() {
       console.log('[PIN Lock] File locked successfully');
       setStatus('File locked with 4-digit PIN.');
 
-      await refreshStorageView();
-
-      // Refetch the updated entry to update UI
-      if (api && currentUser && (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath)) {
-        const list = await api.listEntries({ userId: currentUser.id, path: currentPath });
-        const updatedEntry = list.find(e => (e.storagePath || e.relPath) === entryPath);
-        if (updatedEntry) {
-          setSelectedEntry(updatedEntry);
-          console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
+      // Update entries array directly to reflect the lock status
+      setEntries(prev => prev.map(e => {
+        const ePath = e.storagePath || e.relPath;
+        if (ePath === entryPath) {
+          console.log('[PIN Lock] Updated entry in entries array - isLocked: true');
+          return { ...e, isLocked: true, hasPassword: true };
         }
+        return e;
+      }));
+
+      // Update selectedEntry directly to reflect the lock status
+      if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+        const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
+        setSelectedEntry(updatedEntry);
+        console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
       }
 
       await refreshActivity();
