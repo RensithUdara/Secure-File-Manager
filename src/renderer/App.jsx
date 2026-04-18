@@ -562,7 +562,7 @@ export default function App() {
         console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
         await refreshStorageView();
         console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
-        
+
         await refreshActivity();
         return;
       }
