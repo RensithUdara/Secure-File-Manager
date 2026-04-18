@@ -558,6 +558,11 @@ export default function App() {
           console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
         }
 
+        // Fetch fresh data from backend to ensure consistency
+        if (viewMode === 'storage') {
+          setTimeout(() => refreshStorageView(), 100);
+        }
+
         await refreshActivity();
         return;
       }
@@ -611,6 +616,11 @@ export default function App() {
         const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
         setSelectedEntry(updatedEntry);
         console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
+      }
+
+      // Fetch fresh data from backend to ensure consistency
+      if (viewMode === 'storage') {
+        setTimeout(() => refreshStorageView(), 100);
       }
 
       await refreshActivity();
