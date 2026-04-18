@@ -593,6 +593,8 @@ select {
     display: grid;
     gap: 20px;
     box-shadow: 0 20px 40px var(--shadow);
+    max-height: calc(100vh - 96px);
+    overflow: auto;
 }
 
 .gate-panel section {

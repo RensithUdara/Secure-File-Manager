@@ -505,6 +505,9 @@ function listFavorites(userId) {
 
 function toggleFavorite(userId, relPath) {
     const safeRel = normalizeRelPath(relPath);
+    if (safeRel.startsWith(`${TRASH_DIR}/`) || safeRel.startsWith(`${VERSIONS_DIR}/`)) {
+        return { ok: false, message: 'Cannot favorite system items.' };
+    }
     const db = getDb();
     const existing = db.prepare('SELECT entry_path AS entryPath FROM favorites WHERE user_id = ? AND entry_path = ?')
         .get(userId, safeRel);
