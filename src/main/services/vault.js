@@ -242,7 +242,7 @@ function importFiles(userId, relPath, files) {
             return;
         }
 
-        const safeName = getUniqueName(fullPath, name);
+        const safeName = getUniqueName(fullPath, path.basename(name));
         const targetRel = normalizeRelPath(path.posix.join(toPosixPath(relPath), safeName));
         const { fullPath: targetPath } = resolveUserPath(root, targetRel);
         const encrypted = encryptBuffer(dataBuffer, key);
