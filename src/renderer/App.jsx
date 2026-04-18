@@ -171,6 +171,7 @@ export default function App() {
   };
 
   const handleSelectView = async (mode) => {
+    if (!currentUser) return;
     setViewMode(mode);
     setSearchTerm('');
     setSearchResults([]);
