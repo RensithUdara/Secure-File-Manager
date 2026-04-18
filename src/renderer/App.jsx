@@ -371,40 +371,43 @@ export default function App() {
   };
 
   const handleNewFolder = async (name) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
     const result = await api.createFolder({ userId: currentUser.id, path: currentPath, name });
     if (!result.ok) {
       setStatus(result.message || 'Unable to create folder.');
       return;
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
   const handleDelete = async (entry) => {
     if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
     const confirmed = window.confirm(`Delete ${entry.name}? This cannot be undone.`);
     if (!confirmed) return;
-    await api.deleteEntry({ userId: currentUser.id, path: entry.relPath });
-    await refreshEntries(currentPath);
+    await api.deleteEntry({ userId: currentUser.id, path: entryPath });
+    await refreshEntries(currentPath, currentUser, viewMode === 'storage' ? 'storage' : viewMode);
     await refreshActivity();
   };
 
   const handleRename = async (entry) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
+    const entryPath = entry.storagePath || entry.relPath;
     const next = window.prompt('Rename item:', entry.name);
     if (!next || next === entry.name) return;
-    const result = await api.renameEntry({ userId: currentUser.id, path: entry.relPath, name: next });
+    const result = await api.renameEntry({ userId: currentUser.id, path: entryPath, name: next });
     if (!result.ok) {
       setStatus(result.message || 'Unable to rename.');
       return;
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
   const handleToggleLock = async (entry) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
+    const entryPath = entry.storagePath || entry.relPath;
     if (entry.isLocked) {
       let password = '';
       if (entry.hasPassword) {
@@ -415,7 +418,7 @@ export default function App() {
 
       const result = await api.toggleLock({
         userId: currentUser.id,
-        path: entry.relPath,
+        path: entryPath,
         entryType: entry.type,
         locked: false,
         password,
@@ -424,7 +427,7 @@ export default function App() {
         setStatus(result.message || 'Unable to unlock.');
         return;
       }
-      await refreshEntries(currentPath);
+      await refreshEntries(currentPath, currentUser, 'storage');
       await refreshActivity();
       return;
     }
@@ -432,7 +435,7 @@ export default function App() {
     const password = window.prompt('Set a lock password (optional):', '');
     const result = await api.toggleLock({
       userId: currentUser.id,
-      path: entry.relPath,
+      path: entryPath,
       entryType: entry.type,
       locked: true,
       password: password || '',
@@ -441,17 +444,17 @@ export default function App() {
       setStatus(result.message || 'Unable to lock.');
       return;
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
   const handleOpenCmd = async () => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
     await api.openCmd({ userId: currentUser.id, path: currentPath });
   };
 
   const handleImportFiles = async (fileList) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
     const files = await Promise.all(
       Array.from(fileList).map(async (file) => ({
         name: file.name,
@@ -462,7 +465,7 @@ export default function App() {
     if (!result.ok) {
       setStatus(result.message || 'Unable to import files.');
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
