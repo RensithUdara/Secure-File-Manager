@@ -477,6 +477,10 @@ export default function App() {
     if (!api || !currentUser) return;
     const entryPath = entry.storagePath || entry.relPath;
     const result = await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to update favorites.');
+      return;
+    }
     if (viewMode === 'favorites' && result.favorite === false) {
       if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entry.relPath) {
         setSelectedEntry(null);
@@ -534,6 +538,12 @@ export default function App() {
       setStatus(result.message || 'Unable to restore item.');
       return;
     }
+    if (selectedEntry?.id === entry.id) {
+      setSelectedEntry(null);
+      setPreview(null);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
+    }
     await refreshEntries('', currentUser, 'trash');
     await refreshActivity();
   };
@@ -546,6 +556,12 @@ export default function App() {
     if (!result.ok) {
       setStatus(result.message || 'Unable to delete permanently.');
       return;
+    }
+    if (selectedEntry?.id === entry.id) {
+      setSelectedEntry(null);
+      setPreview(null);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
     }
     await refreshEntries('', currentUser, 'trash');
     await refreshActivity();
