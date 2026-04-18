@@ -34,9 +34,9 @@ export default function ContextMenu({ menu, onClose, onAction, viewMode }) {
                             Rename
                         </button>
                     ) : null}
-                    {canMutate ? (
+                    {canMutate && menu.entry.type === 'file' ? (
                         <button className="context-item" onClick={() => onAction('toggleLock')}>
-                            {menu.entry.isLocked ? 'Unlock' : 'Lock'}
+                            {menu.entry.isLocked ? 'Unlock with PIN' : 'Lock with PIN'}
                         </button>
                     ) : null}
                     <button className="context-item" onClick={() => onAction('toggleFavorite')}>
