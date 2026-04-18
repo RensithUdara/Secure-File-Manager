@@ -668,7 +668,11 @@ export default function App() {
                 versions={versions}
                 onSaveMeta={handleSaveMeta}
                 onRestoreVersion={handleRestoreVersion}
-                onCreateVersion={() => selectedEntry && handleCreateVersion(selectedEntry)}
+                onCreateVersion={
+                  viewMode === 'storage' && selectedEntry?.type === 'file'
+                    ? () => handleCreateVersion(selectedEntry)
+                    : null
+                }
               />
               <ActivityPanel items={activity} />
             </div>
