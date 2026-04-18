@@ -70,14 +70,13 @@ function getFavoritesSet(userId) {
 
 function resolveLockForPath(lockMap, relPath) {
     if (!relPath) return null;
-    const parts = relPath.split('/').filter(Boolean);
-    for (let i = parts.length; i >= 1; i -= 1) {
-        const key = parts.slice(0, i).join('/');
-        if (lockMap.has(key)) {
-            return { path: key, ...lockMap.get(key) };
-        }
-    }
-    return null;
+    const lock = lockMap.get(relPath);
+    if (!lock) return null;
+    return { path: relPath, ...lock };
+}
+
+function isValidPin(value) {
+    return /^\d{4}$/.test(String(value || ''));
 }
 
 function logActivity(userId, action, entryPath, meta) {
@@ -200,15 +199,23 @@ function renameEntry(userId, relPath, newName) {
 function toggleLock({ userId, path: relPath, entryType, locked, password }) {
     const { relPath: safeRel } = resolveEntryPath(userId, relPath);
     const db = getDb();
+    const normalizedType = entryType === 'folder' ? 'folder' : 'file';
+
+    if (normalizedType !== 'file') {
+        return { ok: false, message: 'PIN lock is available for files only.' };
+    }
 
     if (!locked) {
         const existing = db
             .prepare('SELECT password_hash AS passwordHash FROM locks WHERE user_id = ? AND entry_path = ?')
             .get(userId, safeRel);
         if (existing?.passwordHash) {
-            const matches = verifyPassword(password || '', existing.passwordHash);
+            if (!isValidPin(password)) {
+                return { ok: false, message: 'Enter a valid 4-digit PIN.' };
+            }
+            const matches = verifyPassword(String(password), existing.passwordHash);
             if (!matches) {
-                return { ok: false, message: 'Incorrect lock password.' };
+                return { ok: false, message: 'Incorrect 4-digit PIN.' };
             }
         }
 
@@ -217,14 +224,18 @@ function toggleLock({ userId, path: relPath, entryType, locked, password }) {
         return { ok: true };
     }
 
-    const passwordHash = password ? hashPassword(password) : null;
+    if (!isValidPin(password)) {
+        return { ok: false, message: 'PIN must be exactly 4 digits.' };
+    }
+
+    const passwordHash = hashPassword(String(password));
     db.prepare(
         `INSERT INTO locks (user_id, entry_path, entry_type, password_hash, created_at)
      VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(user_id, entry_path) DO UPDATE SET password_hash = excluded.password_hash, entry_type = excluded.entry_type`
-    ).run(userId, safeRel, entryType, passwordHash, new Date().toISOString());
+    ).run(userId, safeRel, normalizedType, passwordHash, new Date().toISOString());
 
-    logActivity(userId, 'lock', safeRel, { hasPassword: Boolean(passwordHash) });
+    logActivity(userId, 'lock', safeRel, { pinProtected: true });
     return { ok: true };
 }
 
@@ -232,11 +243,16 @@ function ensureUnlock(userId, relPath, password) {
     const lockMap = getLocksMap(userId);
     const lock = resolveLockForPath(lockMap, relPath);
     if (!lock) return { ok: true };
+    if (lock.entryType && lock.entryType !== 'file') return { ok: true };
     if (!lock.passwordHash) return { ok: true };
 
-    const matches = verifyPassword(password || '', lock.passwordHash);
+    if (!isValidPin(password)) {
+        return { ok: false, message: 'Enter a valid 4-digit PIN.' };
+    }
+
+    const matches = verifyPassword(String(password), lock.passwordHash);
     if (!matches) {
-        return { ok: false, message: 'Incorrect lock password.' };
+        return { ok: false, message: 'Incorrect 4-digit PIN.' };
     }
 
     return { ok: true };
