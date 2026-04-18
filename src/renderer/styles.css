@@ -672,6 +672,61 @@ select {
     overflow: auto;
 }
 
+.preview-meta {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.preview-meta label {
+    display: grid;
+    gap: 6px;
+    font-size: 0.85rem;
+}
+
+.preview-meta input,
+.preview-meta textarea {
+    background: var(--bg-1);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 10px;
+    font-family: inherit;
+}
+
+.version-panel {
+    margin-top: 16px;
+    display: grid;
+    gap: 10px;
+}
+
+.version-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.version-list {
+    display: grid;
+    gap: 8px;
+    max-height: 160px;
+    overflow: auto;
+}
+
+.version-item {
+    text-align: left;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 10px;
+    padding: 8px 10px;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.version-item:hover {
+    border-color: rgba(45, 212, 191, 0.4);
+}
+
 .preview-pdf {
     width: 100%;
     height: 240px;
