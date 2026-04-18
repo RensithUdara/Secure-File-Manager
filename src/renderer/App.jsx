@@ -396,7 +396,7 @@ export default function App() {
       setStatus(result.message || 'Unable to create folder.');
       return;
     }
-    await refreshEntries(currentPath, currentUser, 'storage');
+    await refreshStorageView();
     await refreshActivity();
   };
 
@@ -412,7 +412,11 @@ export default function App() {
       setEntryMeta({ tags: [], note: '' });
       setVersions([]);
     }
-    await refreshEntries(currentPath, currentUser, viewMode === 'storage' ? 'storage' : viewMode);
+    if (viewMode === 'storage') {
+      await refreshStorageView();
+    } else {
+      await refreshEntries(currentPath, currentUser, viewMode);
+    }
     await refreshActivity();
   };
 
@@ -426,7 +430,7 @@ export default function App() {
       setStatus(result.message || 'Unable to rename.');
       return;
     }
-    await refreshEntries(currentPath, currentUser, 'storage');
+    await refreshStorageView();
     await refreshActivity();
   };
 
@@ -452,7 +456,7 @@ export default function App() {
         setStatus(result.message || 'Unable to unlock.');
         return;
       }
-      await refreshEntries(currentPath, currentUser, 'storage');
+      await refreshStorageView();
       await refreshActivity();
       return;
     }
@@ -469,7 +473,7 @@ export default function App() {
       setStatus(result.message || 'Unable to lock.');
       return;
     }
-    await refreshEntries(currentPath, currentUser, 'storage');
+    await refreshStorageView();
     await refreshActivity();
   };
 
@@ -593,7 +597,7 @@ export default function App() {
     if (!result.ok) {
       setStatus(result.message || 'Unable to import files.');
     }
-    await refreshEntries(currentPath, currentUser, 'storage');
+    await refreshStorageView();
     await refreshActivity();
   };
 
