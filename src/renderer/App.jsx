@@ -9,6 +9,8 @@ import NewFolderModal from './components/NewFolderModal';
 import ActivityPanel from './components/ActivityPanel';
 import PreviewPanel from './components/PreviewPanel';
 import StartupGate from './components/StartupGate';
+import PinEntryModal from './components/PinEntryModal';
+import TextInputModal from './components/TextInputModal';
 import useContextMenu from './hooks/useContextMenu';
 
 const api = window.vault || null;
@@ -35,9 +37,52 @@ export default function App() {
   const [startupStatus, setStartupStatus] = useState('');
   const [theme, setTheme] = useState('neon');
   const [settingsReady, setSettingsReady] = useState(false);
+  const [pinModalOpen, setPinModalOpen] = useState(false);
+  const [pinModalTitle, setPinModalTitle] = useState('');
+  const [pinModalMessage, setPinModalMessage] = useState('');
+  const [pinModalIsUnlock, setPinModalIsUnlock] = useState(false);
+  const [textModalOpen, setTextModalOpen] = useState(false);
+  const [textModalTitle, setTextModalTitle] = useState('');
+  const [textModalLabel, setTextModalLabel] = useState('');
+  const [textModalInitialValue, setTextModalInitialValue] = useState('');
+  const pinModalResolveRef = useRef(null);
+  const textModalResolveRef = useRef(null);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const fileInputRef = useRef(null);
   const autoLockTimer = useRef(null);
+
+  const requestPin = (message, title = 'Enter PIN', isUnlock = false) => {
+    return new Promise((resolve) => {
+      setPinModalTitle(title);
+      setPinModalMessage(message);
+      setPinModalIsUnlock(isUnlock);
+      pinModalResolveRef.current = resolve;
+      setPinModalOpen(true);
+    });
+  };
+
+  const handlePinSubmit = async (pin) => {
+    console.log('[PIN] PIN submitted:', pin.length === 4 ? '****' : 'invalid');
+    pinModalResolveRef.current?.(pin);
+    setPinModalOpen(false);
+    return true;
+  };
+
+  const requestTextInput = (title, label, initialValue = '') => {
+    return new Promise((resolve) => {
+      setTextModalTitle(title);
+      setTextModalLabel(label);
+      setTextModalInitialValue(initialValue);
+      textModalResolveRef.current = resolve;
+      setTextModalOpen(true);
+    });
+  };
+
+  const handleTextSubmit = async (value) => {
+    textModalResolveRef.current?.(value);
+    setTextModalOpen(false);
+    return true;
+  };
 
   const currentPathLabel = useMemo(() => (currentPath ? `/${currentPath}` : '/'), [currentPath]);
   const viewLabel = useMemo(() => {
@@ -337,9 +382,9 @@ export default function App() {
 
     let password = '';
     if (entry.isLocked && entry.hasPassword) {
-      const input = window.prompt('Enter lock password:', '');
-      if (input === null) return;
-      password = input;
+      const pin = requestPin('Enter 4-digit PIN to open this file:');
+      if (pin === null) return;
+      password = pin;
     }
 
     const result = await api.openEntry({ userId: currentUser.id, path: entryPath, password });
@@ -362,9 +407,9 @@ export default function App() {
 
     let password = '';
     if (entry.isLocked && entry.hasPassword) {
-      const input = window.prompt('Enter lock password to preview:', '');
-      if (input === null) return;
-      password = input;
+      const pin = requestPin('Enter 4-digit PIN to preview this file:');
+      if (pin === null) return;
+      password = pin;
     }
 
     const result = await api.previewEntry({ userId: currentUser.id, path: entryPath, password });
@@ -423,7 +468,7 @@ export default function App() {
   const handleRename = async (entry) => {
     if (!api || !currentUser || viewMode !== 'storage') return;
     const entryPath = entry.storagePath || entry.relPath;
-    const next = window.prompt('Rename item:', entry.name);
+    const next = await requestTextInput('Rename Item', 'New name', entry.name);
     if (!next || next === entry.name) return;
     const result = await api.renameEntry({ userId: currentUser.id, path: entryPath, name: next });
     if (!result.ok) {
@@ -435,46 +480,122 @@ export default function App() {
   };
 
   const handleToggleLock = async (entry) => {
-    if (!api || !currentUser || viewMode !== 'storage') return;
-    const entryPath = entry.storagePath || entry.relPath;
-    if (entry.isLocked) {
-      let password = '';
-      if (entry.hasPassword) {
-        const input = window.prompt('Enter lock password to unlock:', '');
-        if (input === null) return;
-        password = input;
+    try {
+      console.log('[PIN Lock] Toggle lock clicked for entry:', entry);
+      if (!api || !currentUser) {
+        console.warn('[PIN Lock] API or currentUser missing');
+        setStatus('Session error. Try refreshing.');
+        return;
+      }
+      if (viewMode !== 'storage') {
+        console.warn('[PIN Lock] Not in storage view:', viewMode);
+        setStatus('PIN lock only works in storage view.');
+        return;
+      }
+      if (!entry) {
+        console.warn('[PIN Lock] No entry provided');
+        setStatus('No file selected.');
+        return;
+      }
+      if (entry.type !== 'file') {
+        console.warn('[PIN Lock] Entry is not a file:', entry.type);
+        setStatus('PIN lock is available for files only.');
+        return;
       }
 
+      const entryPath = entry.storagePath || entry.relPath;
+      if (!entryPath) {
+        console.warn('[PIN Lock] No entry path found');
+        setStatus('Unable to identify file path.');
+        return;
+      }
+      console.log('[PIN Lock] Processing entry:', entryPath, 'IsLocked:', entry.isLocked);
+
+      if (entry.isLocked) {
+        console.log('[PIN Lock] File is locked, prompting for unlock PIN');
+        let password = '';
+        if (entry.hasPassword) {
+          const pin = await requestPin('Enter 4-digit PIN to unlock this file:', 'Unlock File', true);
+          if (!pin) {
+            console.log('[PIN Lock] Unlock cancelled by user');
+            return;
+          }
+          password = pin;
+          console.log('[PIN Lock] PIN entered for unlock');
+        }
+
+        console.log('[PIN Lock] Calling API to unlock...');
+        const result = await api.toggleLock({
+          userId: currentUser.id,
+          path: entryPath,
+          entryType: entry.type,
+          locked: false,
+          password,
+        });
+        console.log('[PIN Lock] Unlock result:', result);
+        if (!result.ok) {
+          console.error('[PIN Lock] Unlock failed:', result.message);
+          setStatus(result.message || 'Unable to unlock.');
+          return;
+        }
+        console.log('[PIN Lock] File unlocked successfully');
+        setStatus('File unlocked.');
+        
+        // Update selected entry if it's the unlocked file
+        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+          setSelectedEntry(prev => ({ ...prev, isLocked: false }));
+        }
+        
+        await refreshStorageView();
+        await refreshActivity();
+        return;
+      }
+
+      console.log('[PIN Lock] File is unlocked, prompting for new PIN');
+      const password = await requestPin('Set a 4-digit PIN for this file:', 'Lock File', false);
+      if (!password) {
+        console.log('[PIN Lock] Lock cancelled by user');
+        return;
+      }
+      console.log('[PIN Lock] Requesting PIN confirmation');
+      const confirmPin = await requestPin('Re-enter the 4-digit PIN to confirm:', 'Confirm PIN', false);
+      if (!confirmPin) {
+        console.log('[PIN Lock] Confirmation cancelled by user');
+        return;
+      }
+      if (password !== confirmPin) {
+        console.warn('[PIN Lock] PIN mismatch');
+        setStatus('PIN confirmation does not match.');
+        return;
+      }
+      console.log('[PIN Lock] PINs match, calling API to lock...');
       const result = await api.toggleLock({
         userId: currentUser.id,
         path: entryPath,
         entryType: entry.type,
-        locked: false,
+        locked: true,
         password,
       });
-      if (!result.ok) {
-        setStatus(result.message || 'Unable to unlock.');
+      console.log('[PIN Lock] Lock result:', result);
+      if (result?.ok === false) {
+        console.error('[PIN Lock] Lock failed:', result.message);
+        setStatus(result.message || 'Unable to lock.');
         return;
       }
+      console.log('[PIN Lock] File locked successfully');
+      setStatus('File locked with 4-digit PIN.');
+      
+      // Update selected entry if it's the locked file
+      if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+        setSelectedEntry(prev => ({ ...prev, isLocked: true, hasPassword: true }));
+      }
+      
       await refreshStorageView();
       await refreshActivity();
-      return;
+    } catch (error) {
+      console.error('[PIN Lock] Unexpected error:', error);
+      setStatus(`Error: ${error.message || 'Unknown error occurred'}`);
     }
-
-    const password = window.prompt('Set a lock password (optional):', '');
-    const result = await api.toggleLock({
-      userId: currentUser.id,
-      path: entryPath,
-      entryType: entry.type,
-      locked: true,
-      password: password || '',
-    });
-    if (result?.ok === false) {
-      setStatus(result.message || 'Unable to lock.');
-      return;
-    }
-    await refreshStorageView();
-    await refreshActivity();
   };
 
   const handleToggleFavorite = async (entry) => {
@@ -799,6 +920,24 @@ export default function App() {
         open={newFolderOpen}
         onClose={() => setNewFolderOpen(false)}
         onCreate={handleNewFolder}
+      />
+
+      <PinEntryModal
+        open={pinModalOpen}
+        title={pinModalTitle}
+        message={pinModalMessage}
+        isUnlock={pinModalIsUnlock}
+        onClose={() => setPinModalOpen(false)}
+        onSubmit={handlePinSubmit}
+      />
+
+      <TextInputModal
+        open={textModalOpen}
+        title={textModalTitle}
+        label={textModalLabel}
+        initialValue={textModalInitialValue}
+        onClose={() => setTextModalOpen(false)}
+        onSubmit={handleTextSubmit}
       />
     </div>
   );
