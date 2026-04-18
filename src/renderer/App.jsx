@@ -8,6 +8,7 @@ import ProfileGate from './components/ProfileGate';
 import NewFolderModal from './components/NewFolderModal';
 import ActivityPanel from './components/ActivityPanel';
 import PreviewPanel from './components/PreviewPanel';
+import StartupGate from './components/StartupGate';
 import useContextMenu from './hooks/useContextMenu';
 
 const api = window.vault || null;
@@ -17,20 +18,35 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState([]);
+  const [viewMode, setViewMode] = useState('storage');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [activity, setActivity] = useState([]);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [entryMeta, setEntryMeta] = useState({ tags: [], note: '' });
+  const [versions, setVersions] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [startupLocked, setStartupLocked] = useState(false);
+  const [startupEnabled, setStartupEnabled] = useState(false);
+  const [startupStatus, setStartupStatus] = useState('');
+  const [theme, setTheme] = useState('neon');
+  const [settingsReady, setSettingsReady] = useState(false);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const fileInputRef = useRef(null);
   const autoLockTimer = useRef(null);
 
   const currentPathLabel = useMemo(() => (currentPath ? `/${currentPath}` : '/'), [currentPath]);
+  const viewLabel = useMemo(() => {
+    if (viewMode === 'storage') return currentPathLabel;
+    if (viewMode === 'recent') return '/Recent';
+    if (viewMode === 'favorites') return '/Favorites';
+    if (viewMode === 'trash') return '/Trash';
+    return currentPathLabel;
+  }, [currentPathLabel, viewMode]);
 
   const refreshProfiles = useCallback(async () => {
     if (!api) return;
@@ -39,12 +55,29 @@ export default function App() {
   }, []);
 
   const refreshEntries = useCallback(
-    async (nextPath = currentPath, user = currentUser) => {
+    async (nextPath = currentPath, user = currentUser, mode = viewMode) => {
       if (!api || !user) return;
-      const list = await api.listEntries({ userId: user.id, path: nextPath });
-      setEntries(list);
+      if (mode === 'storage') {
+        const list = await api.listEntries({ userId: user.id, path: nextPath });
+        setEntries(list);
+        return;
+      }
+      if (mode === 'favorites') {
+        const list = await api.listFavorites({ userId: user.id });
+        setEntries(list);
+        return;
+      }
+      if (mode === 'recent') {
+        const list = await api.listRecent({ userId: user.id, limit: 40 });
+        setEntries(list);
+        return;
+      }
+      if (mode === 'trash') {
+        const list = await api.listTrash({ userId: user.id });
+        setEntries(list);
+      }
     },
-    [currentPath, currentUser]
+    [currentPath, currentUser, viewMode]
   );
 
   const refreshActivity = useCallback(
@@ -61,6 +94,22 @@ export default function App() {
   }, [refreshProfiles]);
 
   useEffect(() => {
+    if (!api) return;
+    api.getSettings().then((data) => {
+      setStartupEnabled(Boolean(data?.startupEnabled));
+      setStartupLocked(Boolean(data?.startupEnabled));
+      setTheme(data?.theme || 'neon');
+      setSettingsReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    const themes = ['theme-neon', 'theme-ember', 'theme-frost', 'theme-noir'];
+    document.body.classList.remove(...themes);
+    document.body.classList.add(`theme-${theme}`);
+  }, [theme]);
+
+  useEffect(() => {
     if (!status) return undefined;
     const timer = setTimeout(() => setStatus(''), 5000);
     return () => clearTimeout(timer);
@@ -72,7 +121,10 @@ export default function App() {
   }, [currentUser, refreshActivity]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') {
+      setSearchResults([]);
+      return;
+    }
     if (!searchTerm.trim()) {
       setSearchResults([]);
       return;
@@ -88,7 +140,7 @@ export default function App() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, currentUser, currentPath]);
+  }, [searchTerm, currentUser, currentPath, viewMode]);
 
   const lockVault = useCallback(async () => {
     if (!api || !currentUser) return;
@@ -100,8 +152,83 @@ export default function App() {
     setSearchResults([]);
     setSelectedEntry(null);
     setPreview(null);
+    setEntryMeta({ tags: [], note: '' });
+    setVersions([]);
+    setViewMode('storage');
     setActivity([]);
   }, [currentUser]);
+
+  const handleUnlockStartup = async (password) => {
+    if (!api) return false;
+    setStartupStatus('');
+    const result = await api.unlockStartup({ password });
+    if (!result.ok) {
+      setStartupStatus(result.message || 'Unable to unlock startup gate.');
+      return false;
+    }
+    setStartupLocked(false);
+    return true;
+  };
+
+  const handleSelectView = async (mode) => {
+    if (!currentUser) return;
+    setViewMode(mode);
+    setSearchTerm('');
+    setSearchResults([]);
+    setSelectedEntry(null);
+    setPreview(null);
+    setEntryMeta({ tags: [], note: '' });
+    setVersions([]);
+    if (mode === 'storage') {
+      await refreshEntries(currentPath, currentUser, 'storage');
+    } else {
+      await refreshEntries('', currentUser, mode);
+    }
+  };
+
+  const handleSetTheme = async (nextTheme) => {
+    if (!api) return;
+    setTheme(nextTheme);
+    await api.setTheme({ theme: nextTheme });
+  };
+
+  const handleSetStartupPassword = async (password) => {
+    if (!api || !password) return;
+    const result = await api.setStartupPassword({ password });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to set startup password.');
+      return;
+    }
+    setStartupEnabled(true);
+    setStatus('Startup password updated.');
+  };
+
+  const handleClearStartupPassword = async () => {
+    if (!api) return;
+    const result = await api.clearStartupPassword();
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to clear startup password.');
+      return;
+    }
+    setStartupEnabled(false);
+    setStatus('Startup password removed.');
+  };
+
+  const handleExportActivity = async () => {
+    if (!api || !currentUser) return;
+    const result = await api.exportActivity({ userId: currentUser.id });
+    if (result?.ok) {
+      setStatus('Activity exported.');
+    }
+  };
+
+  const handleExportVault = async () => {
+    if (!api || !currentUser) return;
+    const result = await api.exportVaultArchive({ userId: currentUser.id });
+    if (result?.ok) {
+      setStatus('Vault archive exported.');
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -138,7 +265,8 @@ export default function App() {
 
     setCurrentUser(result.user);
     setCurrentPath('');
-    await refreshEntries('', result.user);
+    setViewMode('storage');
+    await refreshEntries('', result.user, 'storage');
     await refreshActivity(result.user);
     return true;
   };
@@ -156,6 +284,18 @@ export default function App() {
     return true;
   };
 
+  const handleInviteCreate = async (username, password) => {
+    if (!api) return { ok: false, message: 'Invite service unavailable.' };
+    setStatus('');
+    return api.createInvite({ username, password });
+  };
+
+  const handleInviteRedeem = async (code, username, password) => {
+    if (!api) return { ok: false, message: 'Invite service unavailable.' };
+    setStatus('');
+    return api.redeemInvite({ code, username, password });
+  };
+
   const handleUpdateProfile = async (payload) => {
     if (!api) return false;
     const result = await api.updateProfile({ userId: currentUser.id, ...payload });
@@ -171,11 +311,15 @@ export default function App() {
 
   const handleOpenEntry = async (entry) => {
     if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
     if (entry.type === 'folder') {
-      setCurrentPath(entry.relPath);
+      setViewMode('storage');
+      setCurrentPath(entryPath);
       setSelectedEntry(null);
       setPreview(null);
-      await refreshEntries(entry.relPath);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
+      await refreshEntries(entryPath, currentUser, 'storage');
       return;
     }
 
@@ -186,7 +330,7 @@ export default function App() {
       password = input;
     }
 
-    const result = await api.openEntry({ userId: currentUser.id, path: entry.relPath, password });
+    const result = await api.openEntry({ userId: currentUser.id, path: entryPath, password });
     if (result?.ok === false) {
       setStatus(result.message || 'Unable to open file.');
     }
@@ -195,9 +339,12 @@ export default function App() {
 
   const handleSelectEntry = async (entry) => {
     if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
     if (entry.type === 'folder') {
       setSelectedEntry(null);
       setPreview(null);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
       return;
     }
 
@@ -208,57 +355,66 @@ export default function App() {
       password = input;
     }
 
-    const result = await api.previewEntry({ userId: currentUser.id, path: entry.relPath, password });
+    const result = await api.previewEntry({ userId: currentUser.id, path: entryPath, password });
     setSelectedEntry(entry);
     setPreview(result);
+    const metaResult = await api.getEntryMeta({ userId: currentUser.id, path: entryPath });
+    setEntryMeta({ tags: metaResult.tags || [], note: metaResult.note || '' });
+    const versionList = await api.listVersions({ userId: currentUser.id, path: entryPath });
+    setVersions(versionList || []);
   };
 
   const handleBack = async () => {
-    if (!currentPath) return;
+    if (viewMode !== 'storage' || !currentPath) return;
     const parts = currentPath.split('/').filter(Boolean);
     parts.pop();
     const nextPath = parts.join('/');
     setCurrentPath(nextPath);
     setSelectedEntry(null);
     setPreview(null);
-    await refreshEntries(nextPath);
+    setEntryMeta({ tags: [], note: '' });
+    setVersions([]);
+    await refreshEntries(nextPath, currentUser, 'storage');
   };
 
   const handleNewFolder = async (name) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
     const result = await api.createFolder({ userId: currentUser.id, path: currentPath, name });
     if (!result.ok) {
       setStatus(result.message || 'Unable to create folder.');
       return;
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
   const handleDelete = async (entry) => {
     if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
     const confirmed = window.confirm(`Delete ${entry.name}? This cannot be undone.`);
     if (!confirmed) return;
-    await api.deleteEntry({ userId: currentUser.id, path: entry.relPath });
-    await refreshEntries(currentPath);
+    await api.deleteEntry({ userId: currentUser.id, path: entryPath });
+    await refreshEntries(currentPath, currentUser, viewMode === 'storage' ? 'storage' : viewMode);
     await refreshActivity();
   };
 
   const handleRename = async (entry) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
+    const entryPath = entry.storagePath || entry.relPath;
     const next = window.prompt('Rename item:', entry.name);
     if (!next || next === entry.name) return;
-    const result = await api.renameEntry({ userId: currentUser.id, path: entry.relPath, name: next });
+    const result = await api.renameEntry({ userId: currentUser.id, path: entryPath, name: next });
     if (!result.ok) {
       setStatus(result.message || 'Unable to rename.');
       return;
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
   const handleToggleLock = async (entry) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
+    const entryPath = entry.storagePath || entry.relPath;
     if (entry.isLocked) {
       let password = '';
       if (entry.hasPassword) {
@@ -269,7 +425,7 @@ export default function App() {
 
       const result = await api.toggleLock({
         userId: currentUser.id,
-        path: entry.relPath,
+        path: entryPath,
         entryType: entry.type,
         locked: false,
         password,
@@ -278,7 +434,7 @@ export default function App() {
         setStatus(result.message || 'Unable to unlock.');
         return;
       }
-      await refreshEntries(currentPath);
+      await refreshEntries(currentPath, currentUser, 'storage');
       await refreshActivity();
       return;
     }
@@ -286,7 +442,7 @@ export default function App() {
     const password = window.prompt('Set a lock password (optional):', '');
     const result = await api.toggleLock({
       userId: currentUser.id,
-      path: entry.relPath,
+      path: entryPath,
       entryType: entry.type,
       locked: true,
       password: password || '',
@@ -295,17 +451,87 @@ export default function App() {
       setStatus(result.message || 'Unable to lock.');
       return;
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
+    await refreshActivity();
+  };
+
+  const handleToggleFavorite = async (entry) => {
+    if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
+    await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
+    await refreshEntries(currentPath, currentUser, viewMode);
+  };
+
+  const handleSaveMeta = async (tagsText, noteText) => {
+    if (!api || !currentUser || !selectedEntry) return;
+    const entryPath = selectedEntry.storagePath || selectedEntry.relPath;
+    const tags = tagsText
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const result = await api.setEntryMeta({ userId: currentUser.id, path: entryPath, tags, note: noteText });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to save notes.');
+      return;
+    }
+    setEntryMeta({ tags, note: noteText });
+    setStatus('Notes saved.');
+  };
+
+  const handleCreateVersion = async (entry) => {
+    if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
+    const result = await api.createVersion({ userId: currentUser.id, path: entryPath });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to save version.');
+      return;
+    }
+    const versionList = await api.listVersions({ userId: currentUser.id, path: entryPath });
+    setVersions(versionList || []);
+    setStatus('Version saved.');
+  };
+
+  const handleRestoreVersion = async (versionId) => {
+    if (!api || !currentUser) return;
+    const result = await api.restoreVersion({ userId: currentUser.id, versionId });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to restore version.');
+      return;
+    }
+    setStatus('Version restored.');
+  };
+
+  const handleRestoreTrash = async (entry) => {
+    if (!api || !currentUser) return;
+    const result = await api.restoreTrash({ userId: currentUser.id, trashId: entry.id });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to restore item.');
+      return;
+    }
+    await refreshEntries('', currentUser, 'trash');
+    await refreshActivity();
+  };
+
+  const handlePurgeTrash = async (entry) => {
+    if (!api || !currentUser) return;
+    const confirmed = window.confirm(`Delete ${entry.name} permanently?`);
+    if (!confirmed) return;
+    const result = await api.purgeTrash({ userId: currentUser.id, trashId: entry.id });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to delete permanently.');
+      return;
+    }
+    await refreshEntries('', currentUser, 'trash');
     await refreshActivity();
   };
 
   const handleOpenCmd = async () => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
     await api.openCmd({ userId: currentUser.id, path: currentPath });
   };
 
   const handleImportFiles = async (fileList) => {
-    if (!api || !currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') return;
     const files = await Promise.all(
       Array.from(fileList).map(async (file) => ({
         name: file.name,
@@ -316,19 +542,21 @@ export default function App() {
     if (!result.ok) {
       setStatus(result.message || 'Unable to import files.');
     }
-    await refreshEntries(currentPath);
+    await refreshEntries(currentPath, currentUser, 'storage');
     await refreshActivity();
   };
 
   const handleDrop = async (event) => {
     event.preventDefault();
     setIsDragging(false);
+    if (viewMode !== 'storage') return;
     if (!event.dataTransfer?.files?.length) return;
     await handleImportFiles(event.dataTransfer.files);
   };
 
   const handleDragOver = (event) => {
     event.preventDefault();
+    if (viewMode !== 'storage') return;
     setIsDragging(true);
   };
 
@@ -337,14 +565,16 @@ export default function App() {
   };
 
   const handleImportClick = () => {
+    if (viewMode !== 'storage') return;
     fileInputRef.current?.click();
   };
 
   const handleSearchChange = (value) => {
+    if (viewMode !== 'storage') return;
     setSearchTerm(value);
   };
 
-  const visibleEntries = searchTerm.trim() ? searchResults : entries;
+  const visibleEntries = viewMode === 'storage' && searchTerm.trim() ? searchResults : entries;
 
   if (!api) {
     return (
@@ -357,6 +587,21 @@ export default function App() {
     );
   }
 
+  if (!settingsReady) {
+    return (
+      <div className="app-shell error-shell">
+        <div className="error-card">
+          <h1>Loading vault</h1>
+          <p>Preparing security settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (startupLocked) {
+    return <StartupGate status={startupStatus} onUnlock={handleUnlockStartup} />;
+  }
+
   if (!currentUser) {
     return (
       <ProfileGate
@@ -365,16 +610,24 @@ export default function App() {
         onCreate={handleCreateProfile}
         onOpen={handleOpenProfile}
         onRefresh={refreshProfiles}
+        onInviteCreate={handleInviteCreate}
+        onInviteRedeem={handleInviteRedeem}
       />
     );
   }
 
   return (
     <div className="app-shell">
-      <Sidebar currentUser={currentUser} onSettings={() => setSettingsOpen(true)} onLock={lockVault} />
+      <Sidebar
+        currentUser={currentUser}
+        onSettings={() => setSettingsOpen(true)}
+        onLock={lockVault}
+        activeView={viewMode}
+        onSelectView={handleSelectView}
+      />
       <main className="app-main">
         <Toolbar
-          pathLabel={currentPathLabel}
+          pathLabel={viewLabel}
           onBack={handleBack}
           onNewFolder={() => setNewFolderOpen(true)}
           onOpenCmd={handleOpenCmd}
@@ -383,6 +636,9 @@ export default function App() {
           onImport={handleImportClick}
           searchTerm={searchTerm}
           onSearch={handleSearchChange}
+          canNavigate={viewMode === 'storage' && Boolean(currentPath)}
+          canMutate={viewMode === 'storage'}
+          searchDisabled={viewMode !== 'storage'}
         />
         {status ? <div className="status-banner">{status}</div> : null}
         <section
@@ -394,7 +650,7 @@ export default function App() {
           {isDragging ? <div className="drop-overlay">Drop files to encrypt & store</div> : null}
           <div className="content-grid">
             <div className="content-main">
-              {searchTerm.trim() ? (
+              {viewMode === 'storage' && searchTerm.trim() ? (
                 <p className="search-note">Showing results for "{searchTerm}"</p>
               ) : null}
               <FileGrid
@@ -406,7 +662,19 @@ export default function App() {
               />
             </div>
             <div className="content-side">
-              <PreviewPanel entry={selectedEntry} preview={preview} />
+              <PreviewPanel
+                entry={selectedEntry}
+                preview={preview}
+                meta={entryMeta}
+                versions={versions}
+                onSaveMeta={handleSaveMeta}
+                onRestoreVersion={handleRestoreVersion}
+                onCreateVersion={
+                  viewMode === 'storage' && selectedEntry?.type === 'file'
+                    ? () => handleCreateVersion(selectedEntry)
+                    : null
+                }
+              />
               <ActivityPanel items={activity} />
             </div>
           </div>
@@ -428,12 +696,17 @@ export default function App() {
       <ContextMenu
         menu={menu}
         onClose={closeMenu}
+        viewMode={viewMode}
         onAction={(action) => {
           if (!menu.entry) return;
           if (action === 'open') handleOpenEntry(menu.entry);
           if (action === 'rename') handleRename(menu.entry);
           if (action === 'delete') handleDelete(menu.entry);
           if (action === 'toggleLock') handleToggleLock(menu.entry);
+          if (action === 'toggleFavorite') handleToggleFavorite(menu.entry);
+          if (action === 'createVersion') handleCreateVersion(menu.entry);
+          if (action === 'restore') handleRestoreTrash(menu.entry);
+          if (action === 'purge') handlePurgeTrash(menu.entry);
           closeMenu();
         }}
       />
@@ -442,8 +715,15 @@ export default function App() {
         open={settingsOpen}
         profile={currentUser}
         status={status}
+        theme={theme}
+        startupEnabled={startupEnabled}
         onClose={() => setSettingsOpen(false)}
         onSave={handleUpdateProfile}
+        onSetTheme={handleSetTheme}
+        onSetStartupPassword={handleSetStartupPassword}
+        onClearStartupPassword={handleClearStartupPassword}
+        onExportActivity={handleExportActivity}
+        onExportVault={handleExportVault}
       />
 
       <NewFolderModal

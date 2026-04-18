@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function Sidebar({ currentUser, onSettings, onLock }) {
+export default function Sidebar({ currentUser, onSettings, onLock, activeView, onSelectView }) {
     return (
         <aside className="sidebar">
             <div className="sidebar-brand">
@@ -13,11 +13,30 @@ export default function Sidebar({ currentUser, onSettings, onLock }) {
 
             <div className="sidebar-section">
                 <p className="sidebar-label">Quick Access</p>
-                <button className="sidebar-item active">
+                <button
+                    className={`sidebar-item ${activeView === 'storage' ? 'active' : ''}`}
+                    onClick={() => onSelectView('storage')}
+                >
                     <span className="dot" /> App Storage
                 </button>
-                <button className="sidebar-item">Recent</button>
-                <button className="sidebar-item">Favorites</button>
+                <button
+                    className={`sidebar-item ${activeView === 'recent' ? 'active' : ''}`}
+                    onClick={() => onSelectView('recent')}
+                >
+                    Recent
+                </button>
+                <button
+                    className={`sidebar-item ${activeView === 'favorites' ? 'active' : ''}`}
+                    onClick={() => onSelectView('favorites')}
+                >
+                    Favorites
+                </button>
+                <button
+                    className={`sidebar-item ${activeView === 'trash' ? 'active' : ''}`}
+                    onClick={() => onSelectView('trash')}
+                >
+                    Trash
+                </button>
             </div>
 
             <div className="sidebar-footer">

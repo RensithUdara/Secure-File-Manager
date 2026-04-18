@@ -4,10 +4,15 @@ const ACTION_LABELS = {
     'create-folder': 'Created folder',
     import: 'Imported file',
     delete: 'Deleted',
+    trash: 'Moved to trash',
+    restore: 'Restored',
+    purge: 'Purged',
     rename: 'Renamed',
     lock: 'Locked',
     unlock: 'Unlocked',
     open: 'Opened',
+    'version-create': 'Version saved',
+    'version-restore': 'Version restored',
 };
 
 export default function ActivityPanel({ items }) {

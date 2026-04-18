@@ -1,10 +1,23 @@
 import React from 'react';
 
-export default function Toolbar({ pathLabel, onBack, onNewFolder, onOpenCmd, onSettings, onLock, onImport, searchTerm, onSearch }) {
+export default function Toolbar({
+    pathLabel,
+    onBack,
+    onNewFolder,
+    onOpenCmd,
+    onSettings,
+    onLock,
+    onImport,
+    searchTerm,
+    onSearch,
+    canNavigate,
+    canMutate,
+    searchDisabled,
+}) {
     return (
         <header className="toolbar">
             <div className="toolbar-left">
-                <button className="icon-btn" onClick={onBack} aria-label="Back">
+                <button className="icon-btn" onClick={onBack} aria-label="Back" disabled={!canNavigate}>
                     <span aria-hidden="true">&lt;</span>
                 </button>
                 <div className="toolbar-path">
@@ -21,15 +34,16 @@ export default function Toolbar({ pathLabel, onBack, onNewFolder, onOpenCmd, onS
                         value={searchTerm}
                         onChange={(event) => onSearch(event.target.value)}
                         placeholder="Search files"
+                        disabled={searchDisabled}
                     />
                 </label>
-                <button className="ghost-btn" onClick={onImport}>
+                <button className="ghost-btn" onClick={onImport} disabled={!canMutate}>
                     Import Files
                 </button>
-                <button className="primary-btn" onClick={onNewFolder}>
+                <button className="primary-btn" onClick={onNewFolder} disabled={!canMutate}>
                     New Folder
                 </button>
-                <button className="ghost-btn" onClick={onOpenCmd}>
+                <button className="ghost-btn" onClick={onOpenCmd} disabled={!canMutate}>
                     Open CMD
                 </button>
                 <button className="ghost-btn" onClick={onLock}>
