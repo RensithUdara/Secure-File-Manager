@@ -573,15 +573,15 @@ export default function App() {
             setSelectedEntry(updatedEntry);
             console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
           }
-
-          // Fetch fresh data from backend to ensure consistency
-          console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
-          await refreshStorageView();
-          console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
-
-          await refreshActivity();
-          return;
         }
+
+        // Fetch fresh data from backend to ensure consistency
+        console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
+        await refreshStorageView();
+        console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
+
+        await refreshActivity();
+        return;
 
         console.log('[PIN Lock] File is unlocked, prompting for new PIN');
         const password = await requestPin('Set a 4-digit PIN for this file:', 'Lock File', false);
