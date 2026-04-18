@@ -15,7 +15,7 @@ export default function TextInputModal({ open, onClose, onSubmit, title = 'Enter
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        
+
         if (!value.trim()) {
             setError('This field cannot be empty.');
             return;
@@ -46,9 +46,9 @@ export default function TextInputModal({ open, onClose, onSubmit, title = 'Enter
                 <form onSubmit={handleSubmit}>
                     <label>
                         {label}
-                        <input 
+                        <input
                             type="text"
-                            value={value} 
+                            value={value}
                             onChange={(event) => setValue(event.target.value)}
                             autoFocus
                         />
