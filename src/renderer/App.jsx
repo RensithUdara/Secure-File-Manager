@@ -559,10 +559,10 @@ export default function App() {
         }
 
         // Fetch fresh data from backend to ensure consistency
-        if (viewMode === 'storage') {
-          setTimeout(() => refreshStorageView(), 100);
-        }
-
+        console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
+        await refreshStorageView();
+        console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
+        
         await refreshActivity();
         return;
       }
@@ -593,6 +593,7 @@ export default function App() {
         password,
       });
       console.log('[PIN Lock] Lock result:', result);
+      console.log('[PIN Lock] Lock result full:', JSON.stringify(result));
       if (result?.ok === false) {
         console.error('[PIN Lock] Lock failed:', result.message);
         setStatus(result.message || 'Unable to lock.');
@@ -600,28 +601,41 @@ export default function App() {
       }
       console.log('[PIN Lock] File locked successfully');
       setStatus('File locked with 4-digit PIN.');
+      console.log('[PIN Lock] Current entries before update:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
 
       // Update entries array directly to reflect the lock status
-      setEntries(prev => prev.map(e => {
-        const ePath = e.storagePath || e.relPath;
-        if (ePath === entryPath) {
-          console.log('[PIN Lock] Updated entry in entries array - isLocked: true');
-          return { ...e, isLocked: true, hasPassword: true };
-        }
-        return e;
-      }));
+      setEntries(prev => {
+        console.log('[PIN Lock] Setting entries - updating:', entryPath);
+        const updated = prev.map(e => {
+          const ePath = e.storagePath || e.relPath;
+          if (ePath === entryPath) {
+            const newEntry = { ...e, isLocked: true, hasPassword: true };
+            console.log('[PIN Lock] Matched entry - updating to locked:', { name: e.name, wasLocked: e.isLocked, nowLocked: newEntry.isLocked });
+            return newEntry;
+          }
+          return e;
+        });
+        console.log('[PIN Lock] Entries after map:', updated.map(e => ({ name: e.name, isLocked: e.isLocked })));
+        return updated;
+      });
 
       // Update selectedEntry directly to reflect the lock status
       if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
         const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
+        console.log('[PIN Lock] Updated selectedEntry:', {
+          name: updatedEntry.name,
+          isLocked: updatedEntry.isLocked,
+          hasPassword: updatedEntry.hasPassword,
+          storagePath: updatedEntry.storagePath,
+          relPath: updatedEntry.relPath
+        });
         setSelectedEntry(updatedEntry);
-        console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
       }
 
       // Fetch fresh data from backend to ensure consistency
-      if (viewMode === 'storage') {
-        setTimeout(() => refreshStorageView(), 100);
-      }
+      console.log('[PIN Lock] Calling refreshStorageView to sync with backend...');
+      await refreshStorageView();
+      console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
 
       await refreshActivity();
     } catch (error) {
