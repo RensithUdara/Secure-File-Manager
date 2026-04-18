@@ -95,12 +95,17 @@ export default function App() {
 
   useEffect(() => {
     if (!api) return;
-    api.getSettings().then((data) => {
-      setStartupEnabled(Boolean(data?.startupEnabled));
-      setStartupLocked(Boolean(data?.startupEnabled));
-      setTheme(data?.theme || 'neon');
-      setSettingsReady(true);
-    });
+    api
+      .getSettings()
+      .then((data) => {
+        setStartupEnabled(Boolean(data?.startupEnabled));
+        setStartupLocked(Boolean(data?.startupEnabled));
+        setTheme(data?.theme || 'neon');
+        setSettingsReady(true);
+      })
+      .catch(() => {
+        setSettingsReady(true);
+      });
   }, []);
 
   useEffect(() => {
@@ -179,6 +184,7 @@ export default function App() {
     setPreview(null);
     setEntryMeta({ tags: [], note: '' });
     setVersions([]);
+    setIsDragging(false);
     if (mode === 'storage') {
       await refreshEntries(currentPath, currentUser, 'storage');
     } else {
