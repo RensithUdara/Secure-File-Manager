@@ -30,6 +30,36 @@ body {
     min-height: 100vh;
 }
 
+body.theme-ember {
+    --bg-0: #120b0b;
+    --bg-1: #1a1212;
+    --bg-2: #2a1818;
+    --panel: #2e1c1c;
+    --panel-strong: #3a2323;
+    --accent: #fb7185;
+    --accent-2: #f59e0b;
+}
+
+body.theme-frost {
+    --bg-0: #0b1117;
+    --bg-1: #121a26;
+    --bg-2: #1a2636;
+    --panel: #1d2b3f;
+    --panel-strong: #263552;
+    --accent: #38bdf8;
+    --accent-2: #60a5fa;
+}
+
+body.theme-noir {
+    --bg-0: #0a0a0a;
+    --bg-1: #121212;
+    --bg-2: #1c1c1c;
+    --panel: #1f1f1f;
+    --panel-strong: #2a2a2a;
+    --accent: #facc15;
+    --accent-2: #22d3ee;
+}
+
 button,
 input,
 select {
@@ -117,6 +147,15 @@ select {
 .sidebar-item:hover {
     background: rgba(45, 212, 191, 0.12);
     border-color: rgba(45, 212, 191, 0.3);
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: inline-block;
+    margin-right: 8px;
 }
 
 .sidebar-footer {
@@ -220,6 +259,11 @@ select {
     color: var(--text);
     min-width: 180px;
     outline: none;
+}
+
+.search-field input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .icon-btn {
@@ -698,4 +742,16 @@ select {
         flex-direction: column;
         align-items: flex-start;
     }
+}
+
+.icon-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.primary-btn:disabled,
+.ghost-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
 }
