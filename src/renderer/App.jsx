@@ -550,14 +550,14 @@ export default function App() {
           }
           return e;
         }));
-        
+
         // Update selectedEntry directly to reflect the lock status
         if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
           const updatedEntry = { ...selectedEntry, isLocked: false };
           setSelectedEntry(updatedEntry);
           console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
         }
-        
+
         await refreshActivity();
         return;
       }
@@ -595,7 +595,7 @@ export default function App() {
       }
       console.log('[PIN Lock] File locked successfully');
       setStatus('File locked with 4-digit PIN.');
-      
+
       // Update entries array directly to reflect the lock status
       setEntries(prev => prev.map(e => {
         const ePath = e.storagePath || e.relPath;
@@ -605,14 +605,14 @@ export default function App() {
         }
         return e;
       }));
-      
+
       // Update selectedEntry directly to reflect the lock status
       if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
         const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
         setSelectedEntry(updatedEntry);
         console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
       }
-      
+
       await refreshActivity();
     } catch (error) {
       console.error('[PIN Lock] Unexpected error:', error);
