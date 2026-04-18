@@ -340,6 +340,8 @@ export default function App() {
     if (entry.type === 'folder') {
       setSelectedEntry(null);
       setPreview(null);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
       return;
     }
 
