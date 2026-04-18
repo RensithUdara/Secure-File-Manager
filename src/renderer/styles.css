@@ -175,7 +175,7 @@ select {
     min-width: 0;
 }
 
-.profile-pill > div {
+.profile-pill>div {
     min-width: 0;
 }
 
@@ -660,7 +660,7 @@ select {
     min-width: 0;
 }
 
-.profile-card > div {
+.profile-card>div {
     min-width: 0;
 }
 
@@ -829,7 +829,7 @@ select {
     background: rgba(15, 23, 42, 0.5);
 }
 
-.activity-item > div {
+.activity-item>div {
     min-width: 0;
     flex: 1;
 }
