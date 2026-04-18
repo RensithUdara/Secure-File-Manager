@@ -20,7 +20,7 @@ export default function PinEntryModal({ open, onClose, onSubmit, title = 'Enter 
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        
+
         if (!isValidPin(pin)) {
             const newAttempts = attempts + 1;
             setAttempts(newAttempts);
@@ -69,11 +69,11 @@ export default function PinEntryModal({ open, onClose, onSubmit, title = 'Enter 
                 <form onSubmit={handleSubmit}>
                     <label>
                         PIN
-                        <input 
-                            type="password" 
+                        <input
+                            type="password"
                             inputMode="numeric"
                             maxLength="4"
-                            value={pin} 
+                            value={pin}
                             onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
                             placeholder="Enter 4-digit PIN"
                             autoFocus
