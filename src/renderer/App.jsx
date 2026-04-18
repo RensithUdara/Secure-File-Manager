@@ -316,6 +316,8 @@ export default function App() {
       setCurrentPath(entryPath);
       setSelectedEntry(null);
       setPreview(null);
+      setEntryMeta({ tags: [], note: '' });
+      setVersions([]);
       await refreshEntries(entryPath, currentUser, 'storage');
       return;
     }
@@ -369,6 +371,8 @@ export default function App() {
     setCurrentPath(nextPath);
     setSelectedEntry(null);
     setPreview(null);
+    setEntryMeta({ tags: [], note: '' });
+    setVersions([]);
     await refreshEntries(nextPath, currentUser, 'storage');
   };
 
