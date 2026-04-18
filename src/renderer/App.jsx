@@ -563,6 +563,7 @@ export default function App() {
   };
 
   const handleSearchChange = (value) => {
+    if (viewMode !== 'storage') return;
     setSearchTerm(value);
   };
 
