@@ -448,6 +448,76 @@ export default function App() {
     await refreshActivity();
   };
 
+  const handleToggleFavorite = async (entry) => {
+    if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
+    await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
+    await refreshEntries(currentPath, currentUser, viewMode);
+  };
+
+  const handleSaveMeta = async (tagsText, noteText) => {
+    if (!api || !currentUser || !selectedEntry) return;
+    const entryPath = selectedEntry.storagePath || selectedEntry.relPath;
+    const tags = tagsText
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const result = await api.setEntryMeta({ userId: currentUser.id, path: entryPath, tags, note: noteText });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to save notes.');
+      return;
+    }
+    setEntryMeta({ tags, note: noteText });
+    setStatus('Notes saved.');
+  };
+
+  const handleCreateVersion = async (entry) => {
+    if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
+    const result = await api.createVersion({ userId: currentUser.id, path: entryPath });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to save version.');
+      return;
+    }
+    const versionList = await api.listVersions({ userId: currentUser.id, path: entryPath });
+    setVersions(versionList || []);
+    setStatus('Version saved.');
+  };
+
+  const handleRestoreVersion = async (versionId) => {
+    if (!api || !currentUser) return;
+    const result = await api.restoreVersion({ userId: currentUser.id, versionId });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to restore version.');
+      return;
+    }
+    setStatus('Version restored.');
+  };
+
+  const handleRestoreTrash = async (entry) => {
+    if (!api || !currentUser) return;
+    const result = await api.restoreTrash({ userId: currentUser.id, trashId: entry.id });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to restore item.');
+      return;
+    }
+    await refreshEntries('', currentUser, 'trash');
+    await refreshActivity();
+  };
+
+  const handlePurgeTrash = async (entry) => {
+    if (!api || !currentUser) return;
+    const confirmed = window.confirm(`Delete ${entry.name} permanently?`);
+    if (!confirmed) return;
+    const result = await api.purgeTrash({ userId: currentUser.id, trashId: entry.id });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to delete permanently.');
+      return;
+    }
+    await refreshEntries('', currentUser, 'trash');
+    await refreshActivity();
+  };
+
   const handleOpenCmd = async () => {
     if (!api || !currentUser || viewMode !== 'storage') return;
     await api.openCmd({ userId: currentUser.id, path: currentPath });
