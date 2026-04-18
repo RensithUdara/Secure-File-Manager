@@ -451,6 +451,7 @@ function listRecent(userId, limit = MAX_RECENT_RESULTS) {
     rows.forEach((row) => {
         if (results.length >= limit) return;
         if (seen.has(row.entryPath)) return;
+        if (row.entryPath.startsWith(`${TRASH_DIR}/`) || row.entryPath.startsWith(`${VERSIONS_DIR}/`)) return;
         const { fullPath } = resolveEntryPath(userId, row.entryPath);
         if (!fs.existsSync(fullPath)) return;
         const stats = fs.statSync(fullPath);
