@@ -489,6 +489,15 @@ export default function App() {
         setVersions([]);
       }
     }
+    if (viewMode === 'storage' && searchTerm.trim()) {
+      const results = await api.searchEntries({
+        userId: currentUser.id,
+        query: searchTerm,
+        path: currentPath,
+      });
+      setSearchResults(results);
+      return;
+    }
     await refreshEntries(currentPath, currentUser, viewMode);
   };
 
@@ -614,6 +623,20 @@ export default function App() {
   const handleSearchChange = (value) => {
     if (viewMode !== 'storage') return;
     setSearchTerm(value);
+  };
+
+  const refreshStorageView = async () => {
+    if (!api || !currentUser) return;
+    if (searchTerm.trim()) {
+      const results = await api.searchEntries({
+        userId: currentUser.id,
+        query: searchTerm,
+        path: currentPath,
+      });
+      setSearchResults(results);
+      return;
+    }
+    await refreshEntries(currentPath, currentUser, 'storage');
   };
 
   const visibleEntries = viewMode === 'storage' && searchTerm.trim() ? searchResults : entries;
