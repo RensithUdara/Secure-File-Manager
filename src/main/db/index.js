@@ -45,6 +45,54 @@ function migrate(dbInstance) {
       meta TEXT,
       created_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS favorites (
+      user_id INTEGER NOT NULL,
+      entry_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, entry_path)
+    );
+
+    CREATE TABLE IF NOT EXISTS entry_meta (
+      user_id INTEGER NOT NULL,
+      entry_path TEXT NOT NULL,
+      tags_json TEXT,
+      note TEXT,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, entry_path)
+    );
+
+    CREATE TABLE IF NOT EXISTS trash (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      original_path TEXT NOT NULL,
+      trashed_path TEXT NOT NULL,
+      entry_type TEXT NOT NULL,
+      trashed_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS versions (
+      id INTEGER PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      original_path TEXT NOT NULL,
+      version_path TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS invites (
+      id INTEGER PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      created_by INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      redeemed_by INTEGER,
+      redeemed_at TEXT
+    );
   `);
 
     const userColumns = dbInstance.prepare('PRAGMA table_info(users)').all().map((col) => col.name);
