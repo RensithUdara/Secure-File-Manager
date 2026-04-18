@@ -482,49 +482,20 @@ export default function App() {
   const handleToggleLock = async (entry) => {
     try {
       console.log('[PIN Lock] Toggle lock clicked for entry:', entry);
-      if (!api || !currentUser) {
-        console.warn('[PIN Lock] API or currentUser missing');
-        setStatus('Session error. Try refreshing.');
-        return;
-      }
-      if (viewMode !== 'storage') {
-        console.warn('[PIN Lock] Not in storage view:', viewMode);
-        setStatus('PIN lock only works in storage view.');
-        return;
-      }
-      if (!entry) {
-        console.warn('[PIN Lock] No entry provided');
-        setStatus('No file selected.');
-        return;
-      }
-      if (entry.type !== 'file') {
-        console.warn('[PIN Lock] Entry is not a file:', entry.type);
-        setStatus('PIN lock is available for files only.');
-        return;
-      }
-
+      if (!api || !currentUser || !entry || entry.type !== 'file' || viewMode !== 'storage') return;
+      
       const entryPath = entry.storagePath || entry.relPath;
-      if (!entryPath) {
-        console.warn('[PIN Lock] No entry path found');
-        setStatus('Unable to identify file path.');
-        return;
-      }
-      console.log('[PIN Lock] Processing entry:', entryPath, 'IsLocked:', entry.isLocked);
+      if (!entryPath) return;
 
       if (entry.isLocked) {
-        console.log('[PIN Lock] File is locked, prompting for unlock PIN');
+        // UNLOCK CASE
         let password = '';
         if (entry.hasPassword) {
           const pin = await requestPin('Enter 4-digit PIN to unlock this file:', 'Unlock File', true);
-          if (!pin) {
-            console.log('[PIN Lock] Unlock cancelled by user');
-            return;
-          }
+          if (!pin) return;
           password = pin;
-          console.log('[PIN Lock] PIN entered for unlock');
         }
 
-        console.log('[PIN Lock] Calling API to unlock...');
         const result = await api.toggleLock({
           userId: currentUser.id,
           path: entryPath,
@@ -532,75 +503,36 @@ export default function App() {
           locked: false,
           password,
         });
-        console.log('[PIN Lock] Unlock result:', result);
+
         if (!result.ok) {
-          console.error('[PIN Lock] Unlock failed:', result.message);
           setStatus(result.message || 'Unable to unlock.');
           return;
         }
-        console.log('[PIN Lock] File unlocked successfully');
+
+        // Update state with new lock status
+        setEntries(prev => prev.map(e => 
+          (e.storagePath || e.relPath) === entryPath ? { ...e, isLocked: false } : e
+        ));
+        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+          setSelectedEntry(prev => ({ ...prev, isLocked: false }));
+        }
+
         setStatus('File unlocked.');
-
-        // Use entry from API response if available, otherwise update manually
-        const updatedEntryFromAPI = result?.entry;
-        console.log('[PIN Lock] API returned entry:', updatedEntryFromAPI);
-
-        if (updatedEntryFromAPI) {
-          console.log('[PIN Lock] Using entry from API response');
-          setEntries(prev => prev.map(e =>
-            (e.storagePath || e.relPath) === entryPath ? updatedEntryFromAPI : e
-          ));
-          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-            setSelectedEntry(updatedEntryFromAPI);
-            console.log('[PIN Lock] Updated selectedEntry from API response');
-          }
-        } else {
-          console.log('[PIN Lock] API did not return entry, using manual update');
-
-          // Update entries array directly to reflect the lock status
-          setEntries(prev => prev.map(e => {
-            const ePath = e.storagePath || e.relPath;
-            if (ePath === entryPath) {
-              console.log('[PIN Lock] Updated entry in entries array - isLocked: false');
-              return { ...e, isLocked: false };
-            }
-            return e;
-          }));
-
-          // Update selectedEntry directly to reflect the lock status
-          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-            const updatedEntry = { ...selectedEntry, isLocked: false };
-            setSelectedEntry(updatedEntry);
-            console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
-          }
-        }
-
-        // Fetch fresh data from backend to ensure consistency
-        console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
         await refreshStorageView();
-        console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
-
         await refreshActivity();
-        return;
-
-        console.log('[PIN Lock] File is unlocked, prompting for new PIN');
+      } else {
+        // LOCK CASE
         const password = await requestPin('Set a 4-digit PIN for this file:', 'Lock File', false);
-        if (!password) {
-          console.log('[PIN Lock] Lock cancelled by user');
-          return;
-        }
-        console.log('[PIN Lock] Requesting PIN confirmation');
+        if (!password) return;
+
         const confirmPin = await requestPin('Re-enter the 4-digit PIN to confirm:', 'Confirm PIN', false);
-        if (!confirmPin) {
-          console.log('[PIN Lock] Confirmation cancelled by user');
-          return;
-        }
+        if (!confirmPin) return;
+
         if (password !== confirmPin) {
-          console.warn('[PIN Lock] PIN mismatch');
           setStatus('PIN confirmation does not match.');
           return;
         }
-        console.log('[PIN Lock] PINs match, calling API to lock...');
+
         const result = await api.toggleLock({
           userId: currentUser.id,
           path: entryPath,
@@ -608,74 +540,29 @@ export default function App() {
           locked: true,
           password,
         });
-        console.log('[PIN Lock] Lock result:', result);
-        console.log('[PIN Lock] Lock result full:', JSON.stringify(result));
-        if (result?.ok === false) {
-          console.error('[PIN Lock] Lock failed:', result.message);
+
+        if (!result.ok) {
           setStatus(result.message || 'Unable to lock.');
           return;
         }
-        console.log('[PIN Lock] File locked successfully');
-        setStatus('File locked with 4-digit PIN.');
 
-        // Use entry from API response if available, otherwise update manually
-        const updatedEntryFromAPI = result?.entry;
-        console.log('[PIN Lock] API returned entry:', updatedEntryFromAPI);
-
-        if (updatedEntryFromAPI) {
-          console.log('[PIN Lock] Using entry from API response');
-          setEntries(prev => prev.map(e =>
-            (e.storagePath || e.relPath) === entryPath ? updatedEntryFromAPI : e
-          ));
-          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-            setSelectedEntry(updatedEntryFromAPI);
-            console.log('[PIN Lock] Updated selectedEntry from API response');
-          }
-        } else {
-          console.log('[PIN Lock] API did not return entry, using manual update');
-          console.log('[PIN Lock] Current entries before update:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
-
-          // Update entries array directly to reflect the lock status
-          setEntries(prev => {
-            console.log('[PIN Lock] Setting entries - updating:', entryPath);
-            const updated = prev.map(e => {
-              const ePath = e.storagePath || e.relPath;
-              if (ePath === entryPath) {
-                const newEntry = { ...e, isLocked: true, hasPassword: true };
-                console.log('[PIN Lock] Matched entry - updating to locked:', { name: e.name, wasLocked: e.isLocked, nowLocked: newEntry.isLocked });
-                return newEntry;
-              }
-              return e;
-            });
-            console.log('[PIN Lock] Entries after map:', updated.map(e => ({ name: e.name, isLocked: e.isLocked })));
-            return updated;
-          });
-
-          // Update selectedEntry directly to reflect the lock status
-          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-            const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
-            console.log('[PIN Lock] Updated selectedEntry:', {
-              name: updatedEntry.name,
-              isLocked: updatedEntry.isLocked,
-              hasPassword: updatedEntry.hasPassword,
-              storagePath: updatedEntry.storagePath,
-              relPath: updatedEntry.relPath
-            });
-            setSelectedEntry(updatedEntry);
-          }
+        // Update state with new lock status
+        setEntries(prev => prev.map(e => 
+          (e.storagePath || e.relPath) === entryPath ? { ...e, isLocked: true, hasPassword: true } : e
+        ));
+        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+          setSelectedEntry(prev => ({ ...prev, isLocked: true, hasPassword: true }));
         }
 
-        // Fetch fresh data from backend to ensure consistency
-        console.log('[PIN Lock] Calling refreshStorageView to sync with backend...');
+        setStatus('File locked with 4-digit PIN.');
         await refreshStorageView();
-        console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
-
         await refreshActivity();
-      } catch (error) {
-        console.error('[PIN Lock] Unexpected error:', error);
-        setStatus(`Error: ${error.message || 'Unknown error occurred'}`);
       }
-    };
+    } catch (error) {
+      console.error('[PIN Lock] Error:', error);
+      setStatus(`Error: ${error.message || 'Unknown error'}`);
+    }
+  };
 
     const handleToggleFavorite = async (entry) => {
       if (!api || !currentUser) return;
