@@ -540,12 +540,12 @@ export default function App() {
         }
         console.log('[PIN Lock] File unlocked successfully');
         setStatus('File unlocked.');
-        
+
         // Update selected entry if it's the unlocked file
         if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
           setSelectedEntry(prev => ({ ...prev, isLocked: false }));
         }
-        
+
         await refreshStorageView();
         await refreshActivity();
         return;
@@ -584,12 +584,12 @@ export default function App() {
       }
       console.log('[PIN Lock] File locked successfully');
       setStatus('File locked with 4-digit PIN.');
-      
+
       // Update selected entry if it's the locked file
       if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
         setSelectedEntry(prev => ({ ...prev, isLocked: true, hasPassword: true }));
       }
-      
+
       await refreshStorageView();
       await refreshActivity();
     } catch (error) {
