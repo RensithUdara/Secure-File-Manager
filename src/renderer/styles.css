@@ -405,6 +405,17 @@ select {
     font-size: 0.75rem;
 }
 
+.favorite-badge {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    background: rgba(251, 191, 36, 0.18);
+    color: var(--accent-2);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+}
+
 .empty-state {
     display: grid;
     place-items: center;
