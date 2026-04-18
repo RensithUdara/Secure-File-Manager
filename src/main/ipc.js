@@ -172,9 +172,23 @@ function registerIpcHandlers() {
             return { ok: false, message: 'Incorrect password.' };
         }
 
-        const code = crypto.randomBytes(4).toString('hex').toUpperCase();
         const createdAt = new Date();
         const expiresAt = new Date(createdAt.getTime() + expiresInHours * 60 * 60 * 1000);
+        let code = '';
+        let attempts = 0;
+
+        while (!code && attempts < 5) {
+            attempts += 1;
+            const candidate = crypto.randomBytes(4).toString('hex').toUpperCase();
+            const existing = db.prepare('SELECT id FROM invites WHERE code = ?').get(candidate);
+            if (!existing) {
+                code = candidate;
+            }
+        }
+
+        if (!code) {
+            return { ok: false, message: 'Unable to generate invite code.' };
+        }
 
         db.prepare('INSERT INTO invites (code, created_by, created_at, expires_at) VALUES (?, ?, ?, ?)')
             .run(code, user.id, createdAt.toISOString(), expiresAt.toISOString());
