@@ -188,6 +188,10 @@ function renameEntry(userId, relPath, newName) {
 
     db.prepare('UPDATE favorites SET entry_path = ? WHERE user_id = ? AND entry_path = ?')
         .run(targetRel, userId, safeRel);
+    db.prepare('UPDATE entry_meta SET entry_path = ? WHERE user_id = ? AND entry_path = ?')
+        .run(targetRel, userId, safeRel);
+    db.prepare('UPDATE versions SET original_path = ? WHERE user_id = ? AND original_path = ?')
+        .run(targetRel, userId, safeRel);
 
     logActivity(userId, 'rename', targetRel, { from: safeRel });
     return { ok: true };
