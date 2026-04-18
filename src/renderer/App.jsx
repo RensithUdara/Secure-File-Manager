@@ -541,450 +541,483 @@ export default function App() {
         console.log('[PIN Lock] File unlocked successfully');
         setStatus('File unlocked.');
 
-        // Update entries array directly to reflect the lock status
-        setEntries(prev => prev.map(e => {
-          const ePath = e.storagePath || e.relPath;
-          if (ePath === entryPath) {
-            console.log('[PIN Lock] Updated entry in entries array - isLocked: false');
-            return { ...e, isLocked: false };
-          }
-          return e;
-        }));
+        // Use entry from API response if available, otherwise update manually
+        const updatedEntryFromAPI = result?.entry;
+        console.log('[PIN Lock] API returned entry:', updatedEntryFromAPI);
 
-        // Update selectedEntry directly to reflect the lock status
-        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-          const updatedEntry = { ...selectedEntry, isLocked: false };
-          setSelectedEntry(updatedEntry);
-          console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
+        if (updatedEntryFromAPI) {
+          console.log('[PIN Lock] Using entry from API response');
+          setEntries(prev => prev.map(e =>
+            (e.storagePath || e.relPath) === entryPath ? updatedEntryFromAPI : e
+          ));
+          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+            setSelectedEntry(updatedEntryFromAPI);
+            console.log('[PIN Lock] Updated selectedEntry from API response');
+          }
+        } else {
+          console.log('[PIN Lock] API did not return entry, using manual update');
+
+          // Update entries array directly to reflect the lock status
+          setEntries(prev => prev.map(e => {
+            const ePath = e.storagePath || e.relPath;
+            if (ePath === entryPath) {
+              console.log('[PIN Lock] Updated entry in entries array - isLocked: false');
+              return { ...e, isLocked: false };
+            }
+            return e;
+          }));
+
+          // Update selectedEntry directly to reflect the lock status
+          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+            const updatedEntry = { ...selectedEntry, isLocked: false };
+            setSelectedEntry(updatedEntry);
+            console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
+          }
+
+          // Fetch fresh data from backend to ensure consistency
+          console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
+          await refreshStorageView();
+          console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
+
+          await refreshActivity();
+          return;
+        }
+
+        console.log('[PIN Lock] File is unlocked, prompting for new PIN');
+        const password = await requestPin('Set a 4-digit PIN for this file:', 'Lock File', false);
+        if (!password) {
+          console.log('[PIN Lock] Lock cancelled by user');
+          return;
+        }
+        console.log('[PIN Lock] Requesting PIN confirmation');
+        const confirmPin = await requestPin('Re-enter the 4-digit PIN to confirm:', 'Confirm PIN', false);
+        if (!confirmPin) {
+          console.log('[PIN Lock] Confirmation cancelled by user');
+          return;
+        }
+        if (password !== confirmPin) {
+          console.warn('[PIN Lock] PIN mismatch');
+          setStatus('PIN confirmation does not match.');
+          return;
+        }
+        console.log('[PIN Lock] PINs match, calling API to lock...');
+        const result = await api.toggleLock({
+          userId: currentUser.id,
+          path: entryPath,
+          entryType: entry.type,
+          locked: true,
+          password,
+        });
+        console.log('[PIN Lock] Lock result:', result);
+        console.log('[PIN Lock] Lock result full:', JSON.stringify(result));
+        if (result?.ok === false) {
+          console.error('[PIN Lock] Lock failed:', result.message);
+          setStatus(result.message || 'Unable to lock.');
+          return;
+        }
+        console.log('[PIN Lock] File locked successfully');
+        setStatus('File locked with 4-digit PIN.');
+
+        // Use entry from API response if available, otherwise update manually
+        const updatedEntryFromAPI = result?.entry;
+        console.log('[PIN Lock] API returned entry:', updatedEntryFromAPI);
+
+        if (updatedEntryFromAPI) {
+          console.log('[PIN Lock] Using entry from API response');
+          setEntries(prev => prev.map(e =>
+            (e.storagePath || e.relPath) === entryPath ? updatedEntryFromAPI : e
+          ));
+          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+            setSelectedEntry(updatedEntryFromAPI);
+            console.log('[PIN Lock] Updated selectedEntry from API response');
+          }
+        } else {
+          console.log('[PIN Lock] API did not return entry, using manual update');
+          console.log('[PIN Lock] Current entries before update:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
+
+          // Update entries array directly to reflect the lock status
+          setEntries(prev => {
+            console.log('[PIN Lock] Setting entries - updating:', entryPath);
+            const updated = prev.map(e => {
+              const ePath = e.storagePath || e.relPath;
+              if (ePath === entryPath) {
+                const newEntry = { ...e, isLocked: true, hasPassword: true };
+                console.log('[PIN Lock] Matched entry - updating to locked:', { name: e.name, wasLocked: e.isLocked, nowLocked: newEntry.isLocked });
+                return newEntry;
+              }
+              return e;
+            });
+            console.log('[PIN Lock] Entries after map:', updated.map(e => ({ name: e.name, isLocked: e.isLocked })));
+            return updated;
+          });
+
+          // Update selectedEntry directly to reflect the lock status
+          if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
+            const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
+            console.log('[PIN Lock] Updated selectedEntry:', {
+              name: updatedEntry.name,
+              isLocked: updatedEntry.isLocked,
+              hasPassword: updatedEntry.hasPassword,
+              storagePath: updatedEntry.storagePath,
+              relPath: updatedEntry.relPath
+            });
+            setSelectedEntry(updatedEntry);
+          }
         }
 
         // Fetch fresh data from backend to ensure consistency
-        console.log('[PIN Lock] Calling refreshStorageView to sync with backend after unlock...');
+        console.log('[PIN Lock] Calling refreshStorageView to sync with backend...');
         await refreshStorageView();
         console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
 
         await refreshActivity();
-        return;
+      } catch (error) {
+        console.error('[PIN Lock] Unexpected error:', error);
+        setStatus(`Error: ${error.message || 'Unknown error occurred'}`);
       }
+    };
 
-      console.log('[PIN Lock] File is unlocked, prompting for new PIN');
-      const password = await requestPin('Set a 4-digit PIN for this file:', 'Lock File', false);
-      if (!password) {
-        console.log('[PIN Lock] Lock cancelled by user');
+    const handleToggleFavorite = async (entry) => {
+      if (!api || !currentUser) return;
+      const entryPath = entry.storagePath || entry.relPath;
+      const result = await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to update favorites.');
         return;
       }
-      console.log('[PIN Lock] Requesting PIN confirmation');
-      const confirmPin = await requestPin('Re-enter the 4-digit PIN to confirm:', 'Confirm PIN', false);
-      if (!confirmPin) {
-        console.log('[PIN Lock] Confirmation cancelled by user');
-        return;
+      if (viewMode === 'favorites' && result.favorite === false) {
+        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entry.relPath) {
+          setSelectedEntry(null);
+          setPreview(null);
+          setEntryMeta({ tags: [], note: '' });
+          setVersions([]);
+        }
       }
-      if (password !== confirmPin) {
-        console.warn('[PIN Lock] PIN mismatch');
-        setStatus('PIN confirmation does not match.');
-        return;
-      }
-      console.log('[PIN Lock] PINs match, calling API to lock...');
-      const result = await api.toggleLock({
-        userId: currentUser.id,
-        path: entryPath,
-        entryType: entry.type,
-        locked: true,
-        password,
-      });
-      console.log('[PIN Lock] Lock result:', result);
-      console.log('[PIN Lock] Lock result full:', JSON.stringify(result));
-      if (result?.ok === false) {
-        console.error('[PIN Lock] Lock failed:', result.message);
-        setStatus(result.message || 'Unable to lock.');
-        return;
-      }
-      console.log('[PIN Lock] File locked successfully');
-      setStatus('File locked with 4-digit PIN.');
-      console.log('[PIN Lock] Current entries before update:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
-
-      // Update entries array directly to reflect the lock status
-      setEntries(prev => {
-        console.log('[PIN Lock] Setting entries - updating:', entryPath);
-        const updated = prev.map(e => {
-          const ePath = e.storagePath || e.relPath;
-          if (ePath === entryPath) {
-            const newEntry = { ...e, isLocked: true, hasPassword: true };
-            console.log('[PIN Lock] Matched entry - updating to locked:', { name: e.name, wasLocked: e.isLocked, nowLocked: newEntry.isLocked });
-            return newEntry;
-          }
-          return e;
+      if (viewMode === 'storage' && searchTerm.trim()) {
+        const results = await api.searchEntries({
+          userId: currentUser.id,
+          query: searchTerm,
+          path: currentPath,
         });
-        console.log('[PIN Lock] Entries after map:', updated.map(e => ({ name: e.name, isLocked: e.isLocked })));
-        return updated;
-      });
-
-      // Update selectedEntry directly to reflect the lock status
-      if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-        const updatedEntry = { ...selectedEntry, isLocked: true, hasPassword: true };
-        console.log('[PIN Lock] Updated selectedEntry:', {
-          name: updatedEntry.name,
-          isLocked: updatedEntry.isLocked,
-          hasPassword: updatedEntry.hasPassword,
-          storagePath: updatedEntry.storagePath,
-          relPath: updatedEntry.relPath
-        });
-        setSelectedEntry(updatedEntry);
+        setSearchResults(results);
+        return;
       }
+      await refreshEntries(currentPath, currentUser, viewMode);
+    };
 
-      // Fetch fresh data from backend to ensure consistency
-      console.log('[PIN Lock] Calling refreshStorageView to sync with backend...');
-      await refreshStorageView();
-      console.log('[PIN Lock] After refreshStorageView - entries:', entries.map(e => ({ name: e.name, isLocked: e.isLocked })));
+    const handleSaveMeta = async (tagsText, noteText) => {
+      if (!api || !currentUser || !selectedEntry) return;
+      const entryPath = selectedEntry.storagePath || selectedEntry.relPath;
+      const tags = tagsText
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+      const result = await api.setEntryMeta({ userId: currentUser.id, path: entryPath, tags, note: noteText });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to save notes.');
+        return;
+      }
+      setEntryMeta({ tags, note: noteText });
+      setStatus('Notes saved.');
+    };
 
-      await refreshActivity();
-    } catch (error) {
-      console.error('[PIN Lock] Unexpected error:', error);
-      setStatus(`Error: ${error.message || 'Unknown error occurred'}`);
-    }
-  };
+    const handleCreateVersion = async (entry) => {
+      if (!api || !currentUser) return;
+      const entryPath = entry.storagePath || entry.relPath;
+      const result = await api.createVersion({ userId: currentUser.id, path: entryPath });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to save version.');
+        return;
+      }
+      const versionList = await api.listVersions({ userId: currentUser.id, path: entryPath });
+      setVersions(versionList || []);
+      setStatus('Version saved.');
+    };
 
-  const handleToggleFavorite = async (entry) => {
-    if (!api || !currentUser) return;
-    const entryPath = entry.storagePath || entry.relPath;
-    const result = await api.toggleFavorite({ userId: currentUser.id, path: entryPath });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to update favorites.');
-      return;
-    }
-    if (viewMode === 'favorites' && result.favorite === false) {
-      if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entry.relPath) {
+    const handleRestoreVersion = async (versionId) => {
+      if (!api || !currentUser) return;
+      const result = await api.restoreVersion({ userId: currentUser.id, versionId });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to restore version.');
+        return;
+      }
+      setStatus('Version restored.');
+    };
+
+    const handleRestoreTrash = async (entry) => {
+      if (!api || !currentUser) return;
+      const result = await api.restoreTrash({ userId: currentUser.id, trashId: entry.id });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to restore item.');
+        return;
+      }
+      if (selectedEntry?.id === entry.id) {
         setSelectedEntry(null);
         setPreview(null);
         setEntryMeta({ tags: [], note: '' });
         setVersions([]);
       }
-    }
-    if (viewMode === 'storage' && searchTerm.trim()) {
-      const results = await api.searchEntries({
-        userId: currentUser.id,
-        query: searchTerm,
-        path: currentPath,
-      });
-      setSearchResults(results);
-      return;
-    }
-    await refreshEntries(currentPath, currentUser, viewMode);
-  };
+      await refreshEntries('', currentUser, 'trash');
+      await refreshActivity();
+    };
 
-  const handleSaveMeta = async (tagsText, noteText) => {
-    if (!api || !currentUser || !selectedEntry) return;
-    const entryPath = selectedEntry.storagePath || selectedEntry.relPath;
-    const tags = tagsText
-      .split(',')
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-    const result = await api.setEntryMeta({ userId: currentUser.id, path: entryPath, tags, note: noteText });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to save notes.');
-      return;
-    }
-    setEntryMeta({ tags, note: noteText });
-    setStatus('Notes saved.');
-  };
+    const handlePurgeTrash = async (entry) => {
+      if (!api || !currentUser) return;
+      const confirmed = window.confirm(`Delete ${entry.name} permanently?`);
+      if (!confirmed) return;
+      const result = await api.purgeTrash({ userId: currentUser.id, trashId: entry.id });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to delete permanently.');
+        return;
+      }
+      if (selectedEntry?.id === entry.id) {
+        setSelectedEntry(null);
+        setPreview(null);
+        setEntryMeta({ tags: [], note: '' });
+        setVersions([]);
+      }
+      await refreshEntries('', currentUser, 'trash');
+      await refreshActivity();
+    };
 
-  const handleCreateVersion = async (entry) => {
-    if (!api || !currentUser) return;
-    const entryPath = entry.storagePath || entry.relPath;
-    const result = await api.createVersion({ userId: currentUser.id, path: entryPath });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to save version.');
-      return;
-    }
-    const versionList = await api.listVersions({ userId: currentUser.id, path: entryPath });
-    setVersions(versionList || []);
-    setStatus('Version saved.');
-  };
+    const handleOpenCmd = async () => {
+      if (!api || !currentUser || viewMode !== 'storage') return;
+      await api.openCmd({ userId: currentUser.id, path: currentPath });
+    };
 
-  const handleRestoreVersion = async (versionId) => {
-    if (!api || !currentUser) return;
-    const result = await api.restoreVersion({ userId: currentUser.id, versionId });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to restore version.');
-      return;
-    }
-    setStatus('Version restored.');
-  };
+    const handleImportFiles = async (fileList) => {
+      if (!api || !currentUser || viewMode !== 'storage') return;
+      const files = await Promise.all(
+        Array.from(fileList).map(async (file) => ({
+          name: file.name,
+          data: await file.arrayBuffer(),
+        }))
+      );
+      const result = await api.importFiles({ userId: currentUser.id, path: currentPath, files });
+      if (!result.ok) {
+        setStatus(result.message || 'Unable to import files.');
+      }
+      await refreshStorageView();
+      await refreshActivity();
+    };
 
-  const handleRestoreTrash = async (entry) => {
-    if (!api || !currentUser) return;
-    const result = await api.restoreTrash({ userId: currentUser.id, trashId: entry.id });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to restore item.');
-      return;
-    }
-    if (selectedEntry?.id === entry.id) {
-      setSelectedEntry(null);
-      setPreview(null);
-      setEntryMeta({ tags: [], note: '' });
-      setVersions([]);
-    }
-    await refreshEntries('', currentUser, 'trash');
-    await refreshActivity();
-  };
+    const handleDrop = async (event) => {
+      event.preventDefault();
+      setIsDragging(false);
+      if (viewMode !== 'storage') return;
+      if (!event.dataTransfer?.files?.length) return;
+      await handleImportFiles(event.dataTransfer.files);
+    };
 
-  const handlePurgeTrash = async (entry) => {
-    if (!api || !currentUser) return;
-    const confirmed = window.confirm(`Delete ${entry.name} permanently?`);
-    if (!confirmed) return;
-    const result = await api.purgeTrash({ userId: currentUser.id, trashId: entry.id });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to delete permanently.');
-      return;
-    }
-    if (selectedEntry?.id === entry.id) {
-      setSelectedEntry(null);
-      setPreview(null);
-      setEntryMeta({ tags: [], note: '' });
-      setVersions([]);
-    }
-    await refreshEntries('', currentUser, 'trash');
-    await refreshActivity();
-  };
+    const handleDragOver = (event) => {
+      event.preventDefault();
+      if (viewMode !== 'storage') return;
+      setIsDragging(true);
+    };
 
-  const handleOpenCmd = async () => {
-    if (!api || !currentUser || viewMode !== 'storage') return;
-    await api.openCmd({ userId: currentUser.id, path: currentPath });
-  };
+    const handleDragLeave = () => {
+      setIsDragging(false);
+    };
 
-  const handleImportFiles = async (fileList) => {
-    if (!api || !currentUser || viewMode !== 'storage') return;
-    const files = await Promise.all(
-      Array.from(fileList).map(async (file) => ({
-        name: file.name,
-        data: await file.arrayBuffer(),
-      }))
-    );
-    const result = await api.importFiles({ userId: currentUser.id, path: currentPath, files });
-    if (!result.ok) {
-      setStatus(result.message || 'Unable to import files.');
-    }
-    await refreshStorageView();
-    await refreshActivity();
-  };
+    const handleImportClick = () => {
+      if (viewMode !== 'storage') return;
+      fileInputRef.current?.click();
+    };
 
-  const handleDrop = async (event) => {
-    event.preventDefault();
-    setIsDragging(false);
-    if (viewMode !== 'storage') return;
-    if (!event.dataTransfer?.files?.length) return;
-    await handleImportFiles(event.dataTransfer.files);
-  };
+    const handleSearchChange = (value) => {
+      if (viewMode !== 'storage') return;
+      setSearchTerm(value);
+    };
 
-  const handleDragOver = (event) => {
-    event.preventDefault();
-    if (viewMode !== 'storage') return;
-    setIsDragging(true);
-  };
+    const refreshStorageView = async () => {
+      if (!api || !currentUser) return;
+      if (searchTerm.trim()) {
+        const results = await api.searchEntries({
+          userId: currentUser.id,
+          query: searchTerm,
+          path: currentPath,
+        });
+        setSearchResults(results);
+        return;
+      }
+      await refreshEntries(currentPath, currentUser, 'storage');
+    };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
+    const visibleEntries = viewMode === 'storage' && searchTerm.trim() ? searchResults : entries;
 
-  const handleImportClick = () => {
-    if (viewMode !== 'storage') return;
-    fileInputRef.current?.click();
-  };
-
-  const handleSearchChange = (value) => {
-    if (viewMode !== 'storage') return;
-    setSearchTerm(value);
-  };
-
-  const refreshStorageView = async () => {
-    if (!api || !currentUser) return;
-    if (searchTerm.trim()) {
-      const results = await api.searchEntries({
-        userId: currentUser.id,
-        query: searchTerm,
-        path: currentPath,
-      });
-      setSearchResults(results);
-      return;
-    }
-    await refreshEntries(currentPath, currentUser, 'storage');
-  };
-
-  const visibleEntries = viewMode === 'storage' && searchTerm.trim() ? searchResults : entries;
-
-  if (!api) {
-    return (
-      <div className="app-shell error-shell">
-        <div className="error-card">
-          <h1>Electron context not detected</h1>
-          <p>Run the app with `npm run dev` so the preload bridge can connect.</p>
+    if (!api) {
+      return (
+        <div className="app-shell error-shell">
+          <div className="error-card">
+            <h1>Electron context not detected</h1>
+            <p>Run the app with `npm run dev` so the preload bridge can connect.</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (!settingsReady) {
-    return (
-      <div className="app-shell error-shell">
-        <div className="error-card">
-          <h1>Loading vault</h1>
-          <p>Preparing security settings...</p>
+    if (!settingsReady) {
+      return (
+        <div className="app-shell error-shell">
+          <div className="error-card">
+            <h1>Loading vault</h1>
+            <p>Preparing security settings...</p>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  if (startupLocked) {
-    return <StartupGate status={startupStatus} onUnlock={handleUnlockStartup} />;
-  }
+    if (startupLocked) {
+      return <StartupGate status={startupStatus} onUnlock={handleUnlockStartup} />;
+    }
 
-  if (!currentUser) {
+    if (!currentUser) {
+      return (
+        <ProfileGate
+          profiles={profiles}
+          status={status}
+          onCreate={handleCreateProfile}
+          onOpen={handleOpenProfile}
+          onRefresh={refreshProfiles}
+          onInviteCreate={handleInviteCreate}
+          onInviteRedeem={handleInviteRedeem}
+        />
+      );
+    }
+
     return (
-      <ProfileGate
-        profiles={profiles}
-        status={status}
-        onCreate={handleCreateProfile}
-        onOpen={handleOpenProfile}
-        onRefresh={refreshProfiles}
-        onInviteCreate={handleInviteCreate}
-        onInviteRedeem={handleInviteRedeem}
-      />
-    );
-  }
-
-  return (
-    <div className="app-shell">
-      <Sidebar
-        currentUser={currentUser}
-        onSettings={() => setSettingsOpen(true)}
-        onLock={lockVault}
-        activeView={viewMode}
-        onSelectView={handleSelectView}
-      />
-      <main className="app-main">
-        <Toolbar
-          pathLabel={viewLabel}
-          onBack={handleBack}
-          onNewFolder={() => setNewFolderOpen(true)}
-          onOpenCmd={handleOpenCmd}
+      <div className="app-shell">
+        <Sidebar
+          currentUser={currentUser}
           onSettings={() => setSettingsOpen(true)}
           onLock={lockVault}
-          onImport={handleImportClick}
-          searchTerm={searchTerm}
-          onSearch={handleSearchChange}
-          canNavigate={viewMode === 'storage' && Boolean(currentPath)}
-          canMutate={viewMode === 'storage'}
-          searchDisabled={viewMode !== 'storage'}
+          activeView={viewMode}
+          onSelectView={handleSelectView}
         />
-        {status ? <div className="status-banner">{status}</div> : null}
-        <section
-          className={`app-content ${isDragging ? 'dragging' : ''}`}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onDragLeave={handleDragLeave}
-        >
-          {isDragging ? <div className="drop-overlay">Drop files to encrypt & store</div> : null}
-          <div className="content-grid">
-            <div className="content-main">
-              {viewMode === 'storage' && searchTerm.trim() ? (
-                <p className="search-note">Showing results for "{searchTerm}"</p>
-              ) : null}
-              <FileGrid
-                entries={visibleEntries}
-                onOpen={handleOpenEntry}
-                onContextMenu={openMenu}
-                onSelect={handleSelectEntry}
-                selectedPath={selectedEntry?.relPath}
-              />
+        <main className="app-main">
+          <Toolbar
+            pathLabel={viewLabel}
+            onBack={handleBack}
+            onNewFolder={() => setNewFolderOpen(true)}
+            onOpenCmd={handleOpenCmd}
+            onSettings={() => setSettingsOpen(true)}
+            onLock={lockVault}
+            onImport={handleImportClick}
+            searchTerm={searchTerm}
+            onSearch={handleSearchChange}
+            canNavigate={viewMode === 'storage' && Boolean(currentPath)}
+            canMutate={viewMode === 'storage'}
+            searchDisabled={viewMode !== 'storage'}
+          />
+          {status ? <div className="status-banner">{status}</div> : null}
+          <section
+            className={`app-content ${isDragging ? 'dragging' : ''}`}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onDragLeave={handleDragLeave}
+          >
+            {isDragging ? <div className="drop-overlay">Drop files to encrypt & store</div> : null}
+            <div className="content-grid">
+              <div className="content-main">
+                {viewMode === 'storage' && searchTerm.trim() ? (
+                  <p className="search-note">Showing results for "{searchTerm}"</p>
+                ) : null}
+                <FileGrid
+                  entries={visibleEntries}
+                  onOpen={handleOpenEntry}
+                  onContextMenu={openMenu}
+                  onSelect={handleSelectEntry}
+                  selectedPath={selectedEntry?.relPath}
+                />
+              </div>
+              <div className="content-side">
+                <PreviewPanel
+                  entry={selectedEntry}
+                  preview={preview}
+                  meta={entryMeta}
+                  versions={versions}
+                  onSaveMeta={handleSaveMeta}
+                  onRestoreVersion={handleRestoreVersion}
+                  onCreateVersion={
+                    viewMode === 'storage' && selectedEntry?.type === 'file'
+                      ? () => handleCreateVersion(selectedEntry)
+                      : null
+                  }
+                />
+                <ActivityPanel items={activity} />
+              </div>
             </div>
-            <div className="content-side">
-              <PreviewPanel
-                entry={selectedEntry}
-                preview={preview}
-                meta={entryMeta}
-                versions={versions}
-                onSaveMeta={handleSaveMeta}
-                onRestoreVersion={handleRestoreVersion}
-                onCreateVersion={
-                  viewMode === 'storage' && selectedEntry?.type === 'file'
-                    ? () => handleCreateVersion(selectedEntry)
-                    : null
-                }
-              />
-              <ActivityPanel items={activity} />
-            </div>
-          </div>
-        </section>
-      </main>
+          </section>
+        </main>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden-file-input"
-        onChange={(event) => {
-          if (!event.target.files?.length) return;
-          handleImportFiles(event.target.files);
-          event.target.value = '';
-        }}
-      />
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden-file-input"
+          onChange={(event) => {
+            if (!event.target.files?.length) return;
+            handleImportFiles(event.target.files);
+            event.target.value = '';
+          }}
+        />
 
-      <ContextMenu
-        menu={menu}
-        onClose={closeMenu}
-        viewMode={viewMode}
-        onAction={(action) => {
-          if (!menu.entry) return;
-          if (action === 'open') handleOpenEntry(menu.entry);
-          if (action === 'rename') handleRename(menu.entry);
-          if (action === 'delete') handleDelete(menu.entry);
-          if (action === 'toggleLock') handleToggleLock(menu.entry);
-          if (action === 'toggleFavorite') handleToggleFavorite(menu.entry);
-          if (action === 'createVersion') handleCreateVersion(menu.entry);
-          if (action === 'restore') handleRestoreTrash(menu.entry);
-          if (action === 'purge') handlePurgeTrash(menu.entry);
-          closeMenu();
-        }}
-      />
+        <ContextMenu
+          menu={menu}
+          onClose={closeMenu}
+          viewMode={viewMode}
+          onAction={(action) => {
+            if (!menu.entry) return;
+            if (action === 'open') handleOpenEntry(menu.entry);
+            if (action === 'rename') handleRename(menu.entry);
+            if (action === 'delete') handleDelete(menu.entry);
+            if (action === 'toggleLock') handleToggleLock(menu.entry);
+            if (action === 'toggleFavorite') handleToggleFavorite(menu.entry);
+            if (action === 'createVersion') handleCreateVersion(menu.entry);
+            if (action === 'restore') handleRestoreTrash(menu.entry);
+            if (action === 'purge') handlePurgeTrash(menu.entry);
+            closeMenu();
+          }}
+        />
 
-      <SettingsModal
-        open={settingsOpen}
-        profile={currentUser}
-        status={status}
-        theme={theme}
-        startupEnabled={startupEnabled}
-        onClose={() => setSettingsOpen(false)}
-        onSave={handleUpdateProfile}
-        onSetTheme={handleSetTheme}
-        onSetStartupPassword={handleSetStartupPassword}
-        onClearStartupPassword={handleClearStartupPassword}
-        onExportActivity={handleExportActivity}
-        onExportVault={handleExportVault}
-      />
+        <SettingsModal
+          open={settingsOpen}
+          profile={currentUser}
+          status={status}
+          theme={theme}
+          startupEnabled={startupEnabled}
+          onClose={() => setSettingsOpen(false)}
+          onSave={handleUpdateProfile}
+          onSetTheme={handleSetTheme}
+          onSetStartupPassword={handleSetStartupPassword}
+          onClearStartupPassword={handleClearStartupPassword}
+          onExportActivity={handleExportActivity}
+          onExportVault={handleExportVault}
+        />
 
-      <NewFolderModal
-        open={newFolderOpen}
-        onClose={() => setNewFolderOpen(false)}
-        onCreate={handleNewFolder}
-      />
+        <NewFolderModal
+          open={newFolderOpen}
+          onClose={() => setNewFolderOpen(false)}
+          onCreate={handleNewFolder}
+        />
 
-      <PinEntryModal
-        open={pinModalOpen}
-        title={pinModalTitle}
-        message={pinModalMessage}
-        isUnlock={pinModalIsUnlock}
-        onClose={() => setPinModalOpen(false)}
-        onSubmit={handlePinSubmit}
-      />
+        <PinEntryModal
+          open={pinModalOpen}
+          title={pinModalTitle}
+          message={pinModalMessage}
+          isUnlock={pinModalIsUnlock}
+          onClose={() => setPinModalOpen(false)}
+          onSubmit={handlePinSubmit}
+        />
 
-      <TextInputModal
-        open={textModalOpen}
-        title={textModalTitle}
-        label={textModalLabel}
-        initialValue={textModalInitialValue}
-        onClose={() => setTextModalOpen(false)}
-        onSubmit={handleTextSubmit}
-      />
-    </div>
-  );
-}
+        <TextInputModal
+          open={textModalOpen}
+          title={textModalTitle}
+          label={textModalLabel}
+          initialValue={textModalInitialValue}
+          onClose={() => setTextModalOpen(false)}
+          onSubmit={handleTextSubmit}
+        />
+      </div>
+    );
+  }
