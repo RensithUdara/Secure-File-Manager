@@ -6,18 +6,18 @@ const Database = require('better-sqlite3');
 let db;
 
 function getDb() {
-  if (!db) {
-    const dbPath = path.join(app.getPath('userData'), 'vault.db');
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-    db = new Database(dbPath);
-    migrate(db);
-  }
+    if (!db) {
+        const dbPath = path.join(app.getPath('userData'), 'vault.db');
+        fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+        db = new Database(dbPath);
+        migrate(db);
+    }
 
-  return db;
+    return db;
 }
 
 function migrate(dbInstance) {
-  dbInstance.exec(`
+    dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY,
       username TEXT UNIQUE NOT NULL,
@@ -47,10 +47,10 @@ function migrate(dbInstance) {
     );
   `);
 
-  const userColumns = dbInstance.prepare('PRAGMA table_info(users)').all().map((col) => col.name);
-  if (!userColumns.includes('key_salt')) {
-    dbInstance.exec('ALTER TABLE users ADD COLUMN key_salt TEXT');
-  }
+    const userColumns = dbInstance.prepare('PRAGMA table_info(users)').all().map((col) => col.name);
+    if (!userColumns.includes('key_salt')) {
+        dbInstance.exec('ALTER TABLE users ADD COLUMN key_salt TEXT');
+    }
 }
 
 module.exports = { getDb };
