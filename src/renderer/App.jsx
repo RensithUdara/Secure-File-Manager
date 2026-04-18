@@ -584,9 +584,9 @@ export default function App() {
       }
       console.log('[PIN Lock] File locked successfully');
       setStatus('File locked with 4-digit PIN.');
-      
+
       await refreshStorageView();
-      
+
       // Refetch the updated entry to update UI
       if (api && currentUser && (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath)) {
         const list = await api.listEntries({ userId: currentUser.id, path: currentPath });
@@ -596,7 +596,7 @@ export default function App() {
           console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
         }
       }
-      
+
       await refreshActivity();
     } catch (error) {
       console.error('[PIN Lock] Unexpected error:', error);
