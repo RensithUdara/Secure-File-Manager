@@ -541,12 +541,18 @@ export default function App() {
         console.log('[PIN Lock] File unlocked successfully');
         setStatus('File unlocked.');
 
-        // Update selected entry if it's the unlocked file
-        if (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath) {
-          setSelectedEntry(prev => ({ ...prev, isLocked: false }));
+        await refreshStorageView();
+        
+        // Refetch the updated entry to update UI
+        if (api && currentUser && (selectedEntry?.storagePath === entryPath || selectedEntry?.relPath === entryPath)) {
+          const list = await api.listEntries({ userId: currentUser.id, path: currentPath });
+          const updatedEntry = list.find(e => (e.storagePath || e.relPath) === entryPath);
+          if (updatedEntry) {
+            setSelectedEntry(updatedEntry);
+            console.log('[PIN Lock] Updated selectedEntry with new lock status:', updatedEntry.isLocked);
+          }
         }
 
-        await refreshStorageView();
         await refreshActivity();
         return;
       }
