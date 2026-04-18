@@ -556,6 +556,7 @@ export default function App() {
   };
 
   const handleImportClick = () => {
+    if (viewMode !== 'storage') return;
     fileInputRef.current?.click();
   };
 
