@@ -8,6 +8,7 @@ import ProfileGate from './components/ProfileGate';
 import NewFolderModal from './components/NewFolderModal';
 import ActivityPanel from './components/ActivityPanel';
 import PreviewPanel from './components/PreviewPanel';
+import StartupGate from './components/StartupGate';
 import useContextMenu from './hooks/useContextMenu';
 
 const api = window.vault || null;
@@ -17,20 +18,35 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPath, setCurrentPath] = useState('');
   const [entries, setEntries] = useState([]);
+  const [viewMode, setViewMode] = useState('storage');
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [activity, setActivity] = useState([]);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [entryMeta, setEntryMeta] = useState({ tags: [], note: '' });
+  const [versions, setVersions] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState('');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [startupLocked, setStartupLocked] = useState(false);
+  const [startupEnabled, setStartupEnabled] = useState(false);
+  const [startupStatus, setStartupStatus] = useState('');
+  const [theme, setTheme] = useState('neon');
+  const [settingsReady, setSettingsReady] = useState(false);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const fileInputRef = useRef(null);
   const autoLockTimer = useRef(null);
 
   const currentPathLabel = useMemo(() => (currentPath ? `/${currentPath}` : '/'), [currentPath]);
+  const viewLabel = useMemo(() => {
+    if (viewMode === 'storage') return currentPathLabel;
+    if (viewMode === 'recent') return '/Recent';
+    if (viewMode === 'favorites') return '/Favorites';
+    if (viewMode === 'trash') return '/Trash';
+    return currentPathLabel;
+  }, [currentPathLabel, viewMode]);
 
   const refreshProfiles = useCallback(async () => {
     if (!api) return;
@@ -39,12 +55,29 @@ export default function App() {
   }, []);
 
   const refreshEntries = useCallback(
-    async (nextPath = currentPath, user = currentUser) => {
+    async (nextPath = currentPath, user = currentUser, mode = viewMode) => {
       if (!api || !user) return;
-      const list = await api.listEntries({ userId: user.id, path: nextPath });
-      setEntries(list);
+      if (mode === 'storage') {
+        const list = await api.listEntries({ userId: user.id, path: nextPath });
+        setEntries(list);
+        return;
+      }
+      if (mode === 'favorites') {
+        const list = await api.listFavorites({ userId: user.id });
+        setEntries(list);
+        return;
+      }
+      if (mode === 'recent') {
+        const list = await api.listRecent({ userId: user.id, limit: 40 });
+        setEntries(list);
+        return;
+      }
+      if (mode === 'trash') {
+        const list = await api.listTrash({ userId: user.id });
+        setEntries(list);
+      }
     },
-    [currentPath, currentUser]
+    [currentPath, currentUser, viewMode]
   );
 
   const refreshActivity = useCallback(
@@ -61,6 +94,22 @@ export default function App() {
   }, [refreshProfiles]);
 
   useEffect(() => {
+    if (!api) return;
+    api.getSettings().then((data) => {
+      setStartupEnabled(Boolean(data?.startupEnabled));
+      setStartupLocked(Boolean(data?.startupEnabled));
+      setTheme(data?.theme || 'neon');
+      setSettingsReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    const themes = ['theme-neon', 'theme-ember', 'theme-frost', 'theme-noir'];
+    document.body.classList.remove(...themes);
+    document.body.classList.add(`theme-${theme}`);
+  }, [theme]);
+
+  useEffect(() => {
     if (!status) return undefined;
     const timer = setTimeout(() => setStatus(''), 5000);
     return () => clearTimeout(timer);
@@ -72,7 +121,10 @@ export default function App() {
   }, [currentUser, refreshActivity]);
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!api || !currentUser || viewMode !== 'storage') {
+      setSearchResults([]);
+      return;
+    }
     if (!searchTerm.trim()) {
       setSearchResults([]);
       return;
@@ -88,7 +140,7 @@ export default function App() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, currentUser, currentPath]);
+  }, [searchTerm, currentUser, currentPath, viewMode]);
 
   const lockVault = useCallback(async () => {
     if (!api || !currentUser) return;
@@ -100,8 +152,82 @@ export default function App() {
     setSearchResults([]);
     setSelectedEntry(null);
     setPreview(null);
+    setEntryMeta({ tags: [], note: '' });
+    setVersions([]);
+    setViewMode('storage');
     setActivity([]);
   }, [currentUser]);
+
+  const handleUnlockStartup = async (password) => {
+    if (!api) return false;
+    setStartupStatus('');
+    const result = await api.unlockStartup({ password });
+    if (!result.ok) {
+      setStartupStatus(result.message || 'Unable to unlock startup gate.');
+      return false;
+    }
+    setStartupLocked(false);
+    return true;
+  };
+
+  const handleSelectView = async (mode) => {
+    setViewMode(mode);
+    setSearchTerm('');
+    setSearchResults([]);
+    setSelectedEntry(null);
+    setPreview(null);
+    setEntryMeta({ tags: [], note: '' });
+    setVersions([]);
+    if (mode === 'storage') {
+      await refreshEntries(currentPath, currentUser, 'storage');
+    } else {
+      await refreshEntries('', currentUser, mode);
+    }
+  };
+
+  const handleSetTheme = async (nextTheme) => {
+    if (!api) return;
+    setTheme(nextTheme);
+    await api.setTheme({ theme: nextTheme });
+  };
+
+  const handleSetStartupPassword = async (password) => {
+    if (!api || !password) return;
+    const result = await api.setStartupPassword({ password });
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to set startup password.');
+      return;
+    }
+    setStartupEnabled(true);
+    setStatus('Startup password updated.');
+  };
+
+  const handleClearStartupPassword = async () => {
+    if (!api) return;
+    const result = await api.clearStartupPassword();
+    if (!result.ok) {
+      setStatus(result.message || 'Unable to clear startup password.');
+      return;
+    }
+    setStartupEnabled(false);
+    setStatus('Startup password removed.');
+  };
+
+  const handleExportActivity = async () => {
+    if (!api || !currentUser) return;
+    const result = await api.exportActivity({ userId: currentUser.id });
+    if (result?.ok) {
+      setStatus('Activity exported.');
+    }
+  };
+
+  const handleExportVault = async () => {
+    if (!api || !currentUser) return;
+    const result = await api.exportVaultArchive({ userId: currentUser.id });
+    if (result?.ok) {
+      setStatus('Vault archive exported.');
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -138,7 +264,8 @@ export default function App() {
 
     setCurrentUser(result.user);
     setCurrentPath('');
-    await refreshEntries('', result.user);
+    setViewMode('storage');
+    await refreshEntries('', result.user, 'storage');
     await refreshActivity(result.user);
     return true;
   };
@@ -156,6 +283,18 @@ export default function App() {
     return true;
   };
 
+  const handleInviteCreate = async (username, password) => {
+    if (!api) return { ok: false, message: 'Invite service unavailable.' };
+    setStatus('');
+    return api.createInvite({ username, password });
+  };
+
+  const handleInviteRedeem = async (code, username, password) => {
+    if (!api) return { ok: false, message: 'Invite service unavailable.' };
+    setStatus('');
+    return api.redeemInvite({ code, username, password });
+  };
+
   const handleUpdateProfile = async (payload) => {
     if (!api) return false;
     const result = await api.updateProfile({ userId: currentUser.id, ...payload });
@@ -171,11 +310,13 @@ export default function App() {
 
   const handleOpenEntry = async (entry) => {
     if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
     if (entry.type === 'folder') {
-      setCurrentPath(entry.relPath);
+      setViewMode('storage');
+      setCurrentPath(entryPath);
       setSelectedEntry(null);
       setPreview(null);
-      await refreshEntries(entry.relPath);
+      await refreshEntries(entryPath, currentUser, 'storage');
       return;
     }
 
@@ -186,7 +327,7 @@ export default function App() {
       password = input;
     }
 
-    const result = await api.openEntry({ userId: currentUser.id, path: entry.relPath, password });
+    const result = await api.openEntry({ userId: currentUser.id, path: entryPath, password });
     if (result?.ok === false) {
       setStatus(result.message || 'Unable to open file.');
     }
@@ -195,6 +336,7 @@ export default function App() {
 
   const handleSelectEntry = async (entry) => {
     if (!api || !currentUser) return;
+    const entryPath = entry.storagePath || entry.relPath;
     if (entry.type === 'folder') {
       setSelectedEntry(null);
       setPreview(null);
@@ -208,20 +350,24 @@ export default function App() {
       password = input;
     }
 
-    const result = await api.previewEntry({ userId: currentUser.id, path: entry.relPath, password });
+    const result = await api.previewEntry({ userId: currentUser.id, path: entryPath, password });
     setSelectedEntry(entry);
     setPreview(result);
+    const metaResult = await api.getEntryMeta({ userId: currentUser.id, path: entryPath });
+    setEntryMeta({ tags: metaResult.tags || [], note: metaResult.note || '' });
+    const versionList = await api.listVersions({ userId: currentUser.id, path: entryPath });
+    setVersions(versionList || []);
   };
 
   const handleBack = async () => {
-    if (!currentPath) return;
+    if (viewMode !== 'storage' || !currentPath) return;
     const parts = currentPath.split('/').filter(Boolean);
     parts.pop();
     const nextPath = parts.join('/');
     setCurrentPath(nextPath);
     setSelectedEntry(null);
     setPreview(null);
-    await refreshEntries(nextPath);
+    await refreshEntries(nextPath, currentUser, 'storage');
   };
 
   const handleNewFolder = async (name) => {
