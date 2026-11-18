@@ -7,4 +7,3 @@ dist-*/
 *.sqlite
 *.sqlite-journal
 storage/
-config.bat

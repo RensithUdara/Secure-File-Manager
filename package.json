@@ -4,9 +4,9 @@
   "description": "Secure desktop file vault with multi-profile access",
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "node init && concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
-    "start": "node init && electron .",
-    "build": "node init && vite build",
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "start": "electron .",
+    "build": "vite build",
     "pack": "npm run build && electron-builder",
     "preview": "vite preview"
   },
